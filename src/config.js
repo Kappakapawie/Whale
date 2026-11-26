@@ -307,6 +307,15 @@ const CONFIG = {
     millRadius: 160, millSpin: 0.5, wobble: 18,
   },
 
+  // Taking damage: a faint red tint at the screen edges (alpha at full flash; `inner` = clear centre radius share).
+  damageFx: { alpha: 0.32, inner: 0.42, decay: 1.6 },
+
+  // A kill bursts into blood clouds and flesh chunks (count and spread scale with the prey's size). The chunks
+  // drift, slow down and sink. In the dark they are only seen as sonar echoes (green/yellow like the creature).
+  // minRadius (x whale size): even a sardine makes a visible burst.
+  gore: { chunks: [7, 18], chunkLife: 7, clouds: 5, cloudLife: 5, burst: 90, drag: 1.6, sink: 9, minRadius: 22,
+          trailWidth: 1.2, echoLife: 0.7 },
+
   // Eating zone: a capsule along the lower jaw, from `front` to `back` (whale-local units, body length ~190,
   // snout tip at x 90), `reach` x size around it. Prey whose body touches it can be bitten.
   mouth: { front: [96, 4], back: [20, 14], reach: 30 },

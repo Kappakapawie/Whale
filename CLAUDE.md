@@ -220,6 +220,10 @@ then open http://localhost:8123 (the `deep-echo` entry in `.claude/launch.json` 
   beats faster/wider with speed and the body curves into turns (`swimPhase`/`swimAmp`/`bend` set in `Whale.update`).
   It's only the picture - collision and sonar still use `w.poly`.
 - **Eating zone** (`CONFIG.mouth`, `Whale.canReach`): a capsule along the lower jaw, not just the snout tip.
+- **Kills burst into gore** (`Game.spawnGore`/`updateGore`, `drawGore`, `CONFIG.gore`): blood clouds and flesh chunks
+  that drift, slow and sink (prey, swimmers, scavenged carcasses). It's lit world drawing, so in the deep it's only
+  seen on sonar: each click echoes the chunks it reaches as green/yellow specks (`Game.echoGore`, snapshots).
+- **Taking damage** shows only a faint red tint at the screen edges (`CONFIG.damageFx`), never a full-screen flash.
 - **Water shading** (`drawWaterShading`): dappled caustics under the surface, slow parallax haze, marine snow and a
   screen vignette - all drawn before the darkness, so the deep stays black.
   P / Esc: pause, which also shows the sound menu (sliders for master, sonar, eating/breathing and damage/harpoons;

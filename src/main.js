@@ -29,6 +29,7 @@ class Game {
     if (stage > 1) this.applyStage(stage);
     this.prey = []; this.groups = []; this.pods = []; this.orcas = [];
     this.ships = []; this.harpoons = []; this.particles = []; this.popups = [];
+    this.gore = { chunks: [], clouds: [] };
     this.fauna = []; this.swimmers = []; this.wanted = 0; this.wantedT = 0; this.intelT = 0; this.carcasses = [];
     this.quests = new Quests(this);
     this.locks = new Map(); this.acquired = new Map(); // Echo Lock state
@@ -379,6 +380,7 @@ class Game {
     });
     if (!res) return;
     this.sfx.click(type === 'beam');
+    this.echoGore(res, h.x, h.y);
     let krakenD = null;
     for (const [solid, d] of res.hitSolids) {
       if (solid.kind === 'terrain' || solid.kind === 'cable') continue;
@@ -645,6 +647,7 @@ class Game {
         if (p.hp > 0 || !w.alive) continue;
       }
       p.dead = true; const { r, first, epGain, unlocked } = w.eat(sp); this.sfx.chomp();
+      this.spawnGore(p.x, p.y, p.radius, this.echoClass(p.solid), p.vx, p.vy);
       this.quests.onEat(sp, !!struggle);
       const scoreText = Math.max(1, Math.round(epGain));
       if (first) {
@@ -666,6 +669,7 @@ class Game {
     for (const s of this.swimmers) {
       if (s.dead || !w.canReach(s.x, s.y, s.radius)) continue;
       s.dead = true; this.sfx.chomp();
+      this.spawnGore(s.x, s.y, s.radius, 'edible');
       const SW = CONFIG.swimmers;
       w.energy = Math.min(w.stats.maxEnergy, w.energy + SW.energy); w.score += SW.score; w.eaten++;
       this.popup(s.x, s.y - 30, 'A HUMAN...', '#ffd166');
@@ -677,10 +681,52 @@ class Game {
       if (c.dead) continue;
       if (!w.canReach(c.x, c.y, c.radius) && !pointInPoly(h.x, h.y, c.poly)) continue;
       c.dead = true; this.sfx.chomp();
+      this.spawnGore(c.x, c.y, c.radius * 0.7, 'edible');
       w.scavenge(c.sp, Math.max(0.1, c.meat));
       this.popup(c.x, c.y - 20, `Scavenged a dead ${c.sp.name}`, '#bfe3c0');
     }
     this.carcasses = this.carcasses.filter(c => !c.dead);
+  }
+
+  // ------------------------------------------------------------ gore
+  // A kill at (x, y): `radius` = the prey's body radius, `kind` = its echo colour class (edible / inedible).
+  spawnGore(x, y, radius, kind, vx = 0, vy = 0) {
+    const G = CONFIG.gore, r = Math.max(G.minRadius * this.whale.size, radius), n =Math.round(clamp(G.chunks[0] + r / 6, G.chunks[0], G.chunks[1]));
+    for (let i = 0; i < n; i++) {
+      const a = rand(0, TAU), sp = G.burst * rand(0.3, 1) * (0.6 + r / 60);
+      const shape = []; const m = 5 + randInt(0, 2);
+      for (let j = 0; j < m; j++) { const t = j / m * TAU; const rr = rand(0.6, 1.1); shape.push([Math.cos(t) * rr, Math.sin(t) * rr * 0.75]); }
+      this.gore.chunks.push({ x: x + rand(-r, r) * 0.4, y: y + rand(-r, r) * 0.4, vx: vx * 0.4 + Math.cos(a) * sp, vy: vy * 0.4 + Math.sin(a) * sp,
+        r: rand(0.12, 0.28) * r, rot: rand(0, TAU), spin: rand(-3, 3), age: 0, life: G.chunkLife * rand(0.7, 1.2), shape, kind,
+        color: ['#7a1a1e', '#8c2a2a', '#5e1216', '#a3483f'][randInt(0, 3)] });
+    }
+    for (let i = 0; i < G.clouds; i++) {
+      this.gore.clouds.push({ x: x + rand(-r, r) * 0.6, y: y + rand(-r, r) * 0.6, r: r * rand(1.4, 2.4), age: rand(-0.3, 0), life: G.cloudLife * rand(0.7, 1.2) });
+    }
+  }
+
+  updateGore(dt) {
+    const G = CONFIG.gore, k = Math.exp(-G.drag * dt);
+    for (const c of this.gore.chunks) {
+      c.vx *= k; c.vy = G.sink + (c.vy - G.sink) * k; // slows down, then sinks at G.sink
+      c.x += c.vx * dt; c.y += c.vy * dt; c.rot += c.spin * dt; c.spin *= k; c.age += dt;
+      if (this.world.blocked(c.x, c.y)) { c.vx = 0; c.vy = 0; c.spin = 0; } // settle on the seabed
+    }
+    for (const c of this.gore.clouds) { c.age += dt; c.y -= 2 * dt; }
+    this.gore.chunks = this.gore.chunks.filter(c => c.age < c.life);
+    this.gore.clouds = this.gore.clouds.filter(c => c.age < c.life);
+  }
+
+  // Sonar sees the flesh chunks: each one inside the click's reach echoes as a small speck where it was when the
+  // sound reached it (a snapshot, like every echo), coloured like the animal it came from.
+  echoGore(res, x, y) {
+    const ping = this.sonar.pings[this.sonar.pings.length - 1], life = CONFIG.sonar.echoLife * this.whale.stats.echoLifeMult * CONFIG.gore.echoLife;
+    for (const c of this.gore.chunks) {
+      const d = dist(x, y, c.x, c.y);
+      if (d > res.range) continue;
+      if (!ping.full && Math.abs(angleDiff(ping.angle, Math.atan2(c.y - y, c.x - x))) > ping.cone / 2) continue;
+      this.sonar.echoes.push({ line: false, x1: c.x, y1: c.y, t: this.time + d / res.speed, life, i: 0.55 + 0.4 * Math.random(), kind: c.kind });
+    }
   }
 
   popup(x, y, text, color) { this.popups.push({ x, y, text, color, life: 1.6 }); }
@@ -732,7 +778,8 @@ class Game {
     if (this.message) { this.message.t -= dt; if (this.message.t <= 0) this.message = null; }
     if (this.fight) { this.fight.t -= dt; if (this.fight.t <= 0 || this.fight.prey.dead) this.fight = null; }
 
-    this.flash = Math.max(0, this.flash - dt * 2);
+    this.flash = Math.max(0, this.flash - dt * CONFIG.damageFx.decay);
+    this.updateGore(dt);
     this.updateCamera(dt);
 
     if (!w.alive && CONFIG.debug.noDeath) this.respawnAtSurface();

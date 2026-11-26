@@ -99,6 +99,8 @@ function drawGame(game) {
   const blink = w.invuln > 0 && Math.floor(t * 20) % 2 === 0;
   if (!blink) drawWhaleModel(ctx, w, 'fill', px);
 
+  drawGore(ctx, game, px);
+
   // Marine snow: slow sinking specks, lit only where there is light (the darkness covers them deeper down)
   const sn = 110;
   ctx.fillStyle = 'rgba(225,240,250,0.35)';
@@ -171,9 +173,43 @@ function drawGame(game) {
   const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
   vg.addColorStop(0, 'rgba(0,4,10,0)'); vg.addColorStop(1, 'rgba(0,4,10,0.45)');
   ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
-  if (game.flash > 0) { ctx.fillStyle = `rgba(200,0,0,${game.flash * 0.35})`; ctx.fillRect(0, 0, W, H); }
+  if (game.flash > 0) { // taking damage: a faint red tint at the screen edges only, the centre stays clear
+    const D = CONFIG.damageFx, hg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * D.inner, W / 2, H / 2, Math.max(W, H) * 0.72);
+    hg.addColorStop(0, 'rgba(150,20,25,0)'); hg.addColorStop(1, `rgba(150,20,25,${(game.flash * D.alpha).toFixed(3)})`);
+    ctx.fillStyle = hg; ctx.fillRect(0, 0, W, H);
+  }
   drawHUD(ctx, game);
   updateCursor(game);
+}
+
+// ---------------------------------------------------------------- gore (a kill: blood clouds + flesh chunks)
+// Lit world drawing, so it is hidden by the darkness in the deep; there it is seen only through sonar echoes
+// (Game.echoGore).
+function drawGore(ctx, game, px) {
+  const G = CONFIG.gore;
+  for (const c of game.gore.clouds) {
+    if (c.age < 0) continue; // not started yet (clouds bloom one after another)
+    const f = c.age / c.life, r = c.r * (0.4 + 1.2 * Math.sqrt(f)), a = 0.42 * (1 - f) * (1 - f);
+    const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, r);
+    g.addColorStop(0, `rgba(120,8,14,${a.toFixed(3)})`); g.addColorStop(0.6, `rgba(95,6,12,${(a * 0.6).toFixed(3)})`);
+    g.addColorStop(1, 'rgba(80,4,10,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, TAU); ctx.fill();
+  }
+  for (const k of game.gore.chunks) {
+    const a = Math.min(1, (k.life - k.age) / 1.5);
+    ctx.save(); ctx.translate(k.x, k.y); ctx.rotate(k.rot); ctx.globalAlpha = a;
+    ctx.fillStyle = k.color; ctx.beginPath();
+    k.shape.forEach(([sx, sy], i) => i ? ctx.lineTo(sx * k.r, sy * k.r) : ctx.moveTo(sx * k.r, sy * k.r));
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+  // a thin trail of blood behind each sinking chunk
+  ctx.strokeStyle = 'rgba(110,8,14,0.25)'; ctx.lineWidth = Math.max(px, G.trailWidth);
+  for (const k of game.gore.chunks) {
+    if (k.age > k.life * 0.7) continue;
+    ctx.beginPath(); ctx.moveTo(k.x, k.y); ctx.lineTo(k.x - k.vx * 0.25, k.y - k.vy * 0.25); ctx.stroke();
+  }
 }
 
 // ---------------------------------------------------------------- water shading
