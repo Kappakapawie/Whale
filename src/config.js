@@ -307,6 +307,14 @@ const CONFIG = {
     millRadius: 160, millSpin: 0.5, wobble: 18,
   },
 
+  // Eating zone: a capsule along the lower jaw, from `front` to `back` (whale-local units, body length ~190,
+  // snout tip at x 90), `reach` x size around it. Prey whose body touches it can be bitten.
+  mouth: { front: [96, 4], back: [20, 14], reach: 30 },
+
+  // Whale body model (render only): tail beat speed and amplitude grow with swim speed; `bend` is how much
+  // the body curves into turns.
+  whaleLook: { beatIdle: 1.4, beatPerSpeed: 4.5, ampIdle: 0.25, ampPerSpeed: 1.0, tailSwing: 13, bend: 20 },
+
   // Testing only. noDeath: dying heals you and puts you back at the surface above where you died
   // (respawnInvuln s of invulnerability). Set noDeath to false for the real game.
   // tools: show the TESTING block in the pause menu (Unstuck + start from one of the stage presets).

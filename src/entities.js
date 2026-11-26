@@ -126,9 +126,17 @@ class Whale {
   updatePoly() {
     const z = this.size;
     this.poly = transformShape(SHAPES.whale, this.x, this.y, this.angle, z);
-    const [h, b] = transformShape([[90, 0], [78, -26]], this.x, this.y, this.angle, z);
+    const M = CONFIG.mouth;
+    const [h, b, mf, mb] = transformShape([[90, 0], [78, -26], M.front, M.back], this.x, this.y, this.angle, z);
     this.head = { x: h[0], y: h[1] };
     this.blowhole = { x: b[0], y: b[1] };
+    this.mouthSeg = [mf[0], mf[1], mb[0], mb[1]]; // eating zone: a capsule along the lower jaw (CONFIG.mouth)
+  }
+
+  // Can the whale bite something at (x, y) with body radius r? (capsule along the jaw, see CONFIG.mouth)
+  canReach(x, y, r) {
+    const m = this.mouthSeg, c = closestOnSeg(x, y, m[0], m[1], m[2], m[3]);
+    return Math.hypot(c[0] - x, c[1] - y) < r + CONFIG.mouth.reach * this.size;
   }
 
   update(dt, game, input) {
@@ -167,6 +175,15 @@ class Whale {
     }
     this.collide(game);
     this.updatePoly();
+
+    // Animation state for the body model (render only): the tail beats faster and wider with speed,
+    // and the body bends into turns.
+    const A = CONFIG.whaleLook, sf = clamp(sp / s.maxSpeed, 0, 1.6);
+    this.swimPhase = (this.swimPhase || 0) + dt * (A.beatIdle + A.beatPerSpeed * sf);
+    this.swimAmp = lerp(this.swimAmp || 0, A.ampIdle + A.ampPerSpeed * sf, Math.min(1, dt * 3));
+    const turn = angleDiff(this.lastAngle ?? this.angle, this.angle) / Math.max(dt, 1e-3);
+    this.lastAngle = this.angle;
+    this.bend = lerp(this.bend || 0, clamp(turn, -2, 2), Math.min(1, dt * 4));
 
     // Breathing
     if (this.y < s.breathDepth) {

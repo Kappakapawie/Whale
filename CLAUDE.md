@@ -203,14 +203,25 @@ then open http://localhost:8123 (the `deep-echo` entry in `.claude/launch.json` 
 | `src/kraken.js` | The Kraken: behaviour, scan cells, partial-reveal hologram |
 | `src/entities.js` | `SHAPES`, `Whale` (growth, upgrades), `Prey` (all species), `Pod` + `Orca`, `Ship` + `Harpoon` |
 | `src/audio.js` | Procedural WebAudio sounds (clicks, echoes, hurt, harpoon, breath), volume channels + saved volumes |
-| `src/render.js` | Zoomed world drawing, darkness overlay, echoes, HUD, food chain panel, upgrade menu, overlays |
+| `src/render.js` | Zoomed world drawing, water shading, whale body model, darkness overlay, echoes, HUD, food chain panel, menus |
 | `src/main.js` | `Game` class: input, spawning/despawning around the whale, update loop, state machine |
 
 ## Current gameplay (v0.2)
 
 - WASD/arrows swim, Shift sprint (burns more air + energy).
 - Left click / Space: narrow long-range sonar beam toward the mouse. Right click / E: short 360° burst.
-- U / Tab: evolve menu (spend upgrade points on stats). Quests are shown top right.
+- U / Tab: evolve menu (spend upgrade points on stats). Quests are shown top right. F: full food chain panel.
+- **HUD style "Sonar Instrument"** (`HUD` palette + helpers in render.js, Space Mono / Space Grotesk from Google Fonts in
+  `index.html`): thin cyan stat lines without numbers (AIR, HP, FOOD, SIZE) top left; big depth readout + dive limit
+  top right with all active quests under it; a depth thread down the right edge (glowing marker = you, warm tick =
+  dive limit); bottom left only "HUNTING <species> · n/10 to <next>" (F opens the full food chain); upgrade points
+  bottom right only when you have some. Keep the screen this quiet: show numbers only where they matter.
+- **Whale model** (`drawWhaleModel`, `CONFIG.whaleLook`): shaded sperm whale drawn along a bending spine; the tail
+  beats faster/wider with speed and the body curves into turns (`swimPhase`/`swimAmp`/`bend` set in `Whale.update`).
+  It's only the picture - collision and sonar still use `w.poly`.
+- **Eating zone** (`CONFIG.mouth`, `Whale.canReach`): a capsule along the lower jaw, not just the snout tip.
+- **Water shading** (`drawWaterShading`): dappled caustics under the surface, slow parallax haze, marine snow and a
+  screen vignette - all drawn before the darkness, so the deep stays black.
   P / Esc: pause, which also shows the sound menu (sliders for master, sonar, eating/breathing and damage/harpoons;
   saved in `localStorage`, defaults in `CONFIG.audio`). M: mute.
 - Sounds route through channel gains in `Sfx` (`sonar`, `effects`, `danger`) into a master gain. Damage and harpoon

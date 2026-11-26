@@ -55,6 +55,8 @@ function drawGame(game) {
     }
   }
 
+  drawWaterShading(ctx, game, x0, x1, y0, y1, px, t);
+
   // --- Terrain
   ctx.fillStyle = game.grad.terrain;
   for (const s of game.world.solids) {
@@ -95,11 +97,19 @@ function drawGame(game) {
   // --- Whale (lit)
   const w = game.whale;
   const blink = w.invuln > 0 && Math.floor(t * 20) % 2 === 0;
-  if (!blink) {
-    ctx.fillStyle = w.alive ? '#76808c' : '#3b3f45';
-    tracePoly(ctx, w.poly); ctx.fill();
-    const eye = transformShape([[38, 8]], w.x, w.y, w.angle, w.size)[0];
-    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(eye[0], eye[1], 2.5 * w.size, 0, TAU); ctx.fill();
+  if (!blink) drawWhaleModel(ctx, w, 'fill', px);
+
+  // Marine snow: slow sinking specks, lit only where there is light (the darkness covers them deeper down)
+  const sn = 110;
+  ctx.fillStyle = 'rgba(225,240,250,0.35)';
+  for (let gx = Math.floor(x0 / sn); gx <= Math.ceil(x1 / sn); gx++) {
+    for (let gy = Math.max(0, Math.floor(y0 / sn) - 1); gy <= Math.ceil(y1 / sn); gy++) {
+      const h = hash(gx * 3 + 1, gy * 7 - 2); if (h > 0.5) continue;
+      const fall = (t * (4 + h * 6)) % sn;
+      const sx = gx * sn + hash(gy, gx * 5) * sn + Math.sin(t * 0.5 + h * 20) * 6, sy = gy * sn + hash(gx, gy + 9) * sn + fall;
+      if (sy < 4) continue;
+      ctx.fillRect(sx, sy, 1.6 * px, 1.6 * px);
+    }
   }
 
   // ================= DARKNESS =================
@@ -108,8 +118,8 @@ function drawGame(game) {
   // Faint self-outline so the player can find themself in the dark
   const selfA = 0.5 * (1 - lightAt(w.y));
   if (selfA > 0.02 && !blink) {
-    ctx.strokeStyle = `rgba(150,180,210,${selfA})`; ctx.lineWidth = 1.5 * px;
-    tracePoly(ctx, w.poly); ctx.stroke();
+    ctx.strokeStyle = `rgba(150,180,210,${selfA})`;
+    drawWhaleModel(ctx, w, 'outline', px);
   }
 
   // Surface line
@@ -157,9 +167,157 @@ function drawGame(game) {
 
   // ================= SCREEN SPACE =================
   ctx.setTransform(1, 0, 0, 1, 0, 0);
+  // soft vignette: the water closes in at the edges
+  const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+  vg.addColorStop(0, 'rgba(0,4,10,0)'); vg.addColorStop(1, 'rgba(0,4,10,0.45)');
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
   if (game.flash > 0) { ctx.fillStyle = `rgba(200,0,0,${game.flash * 0.35})`; ctx.fillRect(0, 0, W, H); }
   drawHUD(ctx, game);
   updateCursor(game);
+}
+
+// ---------------------------------------------------------------- water shading
+// Drawn before the darkness overlay, so it only shows where there is light.
+// Caustics: shimmering light bands just under the surface. Haze: big soft light/dark patches drifting slowly
+// at half camera speed (parallax), so open water has depth and texture instead of a flat gradient.
+function drawWaterShading(ctx, game, x0, x1, y0, y1, px, t) {
+  // haze (parallax: drawn in a frame that moves at half the camera speed)
+  const HZ = 1100, par = 0.5, ox = game.cam.x * par, oy = game.cam.y * par;
+  for (let gx = Math.floor((x0 - ox) / HZ) - 1; gx <= Math.ceil((x1 - ox) / HZ); gx++) {
+    for (let gy = Math.floor((y0 - oy) / HZ) - 1; gy <= Math.ceil((y1 - oy) / HZ); gy++) {
+      const h = hash(gx + 41, gy - 17);
+      const bx = gx * HZ + hash(gy, gx + 3) * HZ + ox + Math.sin(t * 0.05 + h * 9) * 120;
+      const by = gy * HZ + hash(gx - 8, gy) * HZ + oy;
+      if (by < 0) continue;
+      const r = 450 + h * 500, light = h > 0.5;
+      const g = ctx.createRadialGradient(bx, by, 0, bx, by, r);
+      g.addColorStop(0, light ? 'rgba(140,210,240,0.07)' : 'rgba(0,12,28,0.12)');
+      g.addColorStop(1, light ? 'rgba(140,210,240,0)' : 'rgba(0,12,28,0)');
+      ctx.fillStyle = g; ctx.fillRect(bx - r, Math.max(0, by - r), 2 * r, 2 * r);
+    }
+  }
+  // caustics: dappled patches of light that drift and shimmer, strongest right under the surface
+  const CD = 300; // how deep they reach (world units)
+  if (y0 < CD) {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const cs = 46;
+    for (let gx = Math.floor(x0 / cs) - 1; gx <= Math.ceil(x1 / cs); gx++) {
+      for (let gy = 0; gy * cs < CD; gy++) {
+        const h = hash(gx * 13 + 5, gy * 3 + 1);
+        const cx = gx * cs + h * cs + Math.sin(t * 0.7 + h * 12) * 10;
+        const cy = gy * cs + hash(gx, gy + 31) * cs + Math.cos(t * 0.5 + h * 7) * 6;
+        const fl = 0.5 + 0.5 * Math.sin(t * (1.2 + h) + h * 40);
+        const a = fl * 0.09 * (1 - cy / CD);
+        if (a < 0.01) continue;
+        ctx.fillStyle = `rgba(200,240,255,${a.toFixed(3)})`;
+        ctx.beginPath(); ctx.ellipse(cx, cy, 9 + h * 12, 3 + h * 4, h * 3, 0, TAU); ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+}
+
+// ---------------------------------------------------------------- whale body model
+// A sperm whale drawn along a bending spine, in whale-local units (snout at +90, tail stock at -80), scaled by
+// size and mirrored when facing left so the back stays up. The tail beats with swim speed (swimPhase/swimAmp)
+// and the body curves into turns (bend). Shading: dark back to pale belly, a lit ridge along the back,
+// wrinkled skin behind the head, jaw line, eye, a flipper and tail flukes that tilt with each beat.
+// Collision and sonar still use the simple w.poly; this is only the picture.
+const WHALE_PROFILE = [ // u (0 = snout, 1 = tail stock), top, bottom
+  [0, -21, 9], [0.02, -27, 17], [0.1, -29, 21], [0.36, -29, 22], [0.48, -26, 26], [0.6, -20, 23],
+  [0.75, -12, 14], [0.9, -6, 7], [1, -4, 4]];
+function whaleProfile(u) {
+  const P = WHALE_PROFILE;
+  for (let i = 1; i < P.length; i++) {
+    if (u <= P[i][0]) {
+      let f = (u - P[i - 1][0]) / (P[i][0] - P[i - 1][0]); f = f * f * (3 - 2 * f);
+      return [lerp(P[i - 1][1], P[i][1], f), lerp(P[i - 1][2], P[i][2], f)];
+    }
+  }
+  return [P[P.length - 1][1], P[P.length - 1][2]];
+}
+
+function drawWhaleModel(ctx, w, mode, px) {
+  const A = CONFIG.whaleLook, flip = Math.cos(w.angle) < 0 ? -1 : 1, z = w.size;
+  const ph = w.swimPhase || 0, amp = w.swimAmp || 0, bend = (w.bend || 0) * flip;
+  const N = 26, X0 = 94, X1 = -80;
+  // spine offset: travelling wave that grows toward the tail + a curve into the turn
+  const off = u => amp * A.tailSwing * Math.pow(u, 2.2) * Math.sin(ph - u * 3.2) - bend * A.bend * u * u;
+  const top = [], bot = [];
+  for (let i = 0; i <= N; i++) {
+    const u = i / N, x = lerp(X0, X1, u), o = off(u), [tp, bt] = whaleProfile(u);
+    top.push([x, o + tp]); bot.push([x, o + bt]);
+  }
+  const tailY = off(1), slope = (off(1) - off(0.94)) / (0.06 * (X0 - X1)); // tail direction (local dy/dx, x backwards)
+  const fl = Math.atan(slope * 2.2) + 0.25 * Math.sin(ph - 3.6) * amp; // flukes lead the stroke
+
+  ctx.save();
+  ctx.translate(w.x, w.y); ctx.rotate(w.angle); ctx.scale(z, z * flip);
+  const body = () => {
+    ctx.beginPath();
+    ctx.moveTo(top[0][0], top[0][1]);
+    for (let i = 1; i <= N; i++) ctx.lineTo(top[i][0], top[i][1]);
+    for (let i = N; i >= 0; i--) ctx.lineTo(bot[i][0], bot[i][1]);
+    ctx.quadraticCurveTo(X0 + 4, (top[0][1] + bot[0][1]) / 2, top[0][0], top[0][1]); // blunt rounded snout
+    ctx.closePath();
+  };
+  const flukes = () => { // a tapered blade + a second lobe seen in perspective
+    ctx.save(); ctx.translate(X1 + 2, tailY); ctx.rotate(-fl);
+    const spread = 4 + 5 * Math.abs(Math.cos(ph - 3.6));
+    ctx.beginPath();
+    ctx.moveTo(4, -4); ctx.quadraticCurveTo(-12, -6 - spread, -26, -10 - spread);
+    ctx.quadraticCurveTo(-20, 0, -26, 10 + spread * 0.6);
+    ctx.quadraticCurveTo(-12, 5 + spread * 0.5, 4, 4);
+    ctx.closePath(); ctx.restore();
+  };
+  const fin = () => {
+    const a = 0.55 + 0.25 * Math.sin(ph * 0.5) + 0.15 * amp;
+    ctx.save(); ctx.translate(36, bot[9][1] - 4); ctx.rotate(a); // on the lower flank, below the eye
+    ctx.beginPath(); ctx.moveTo(0, -3); ctx.quadraticCurveTo(-10, -2, -20, 3); ctx.quadraticCurveTo(-8, 6, 0, 4); ctx.closePath();
+    ctx.restore();
+  };
+
+  if (mode === 'outline') {
+    ctx.lineWidth = 1.5 * px / z; ctx.lineJoin = 'round';
+    body(); ctx.stroke(); flukes(); ctx.stroke();
+    ctx.restore(); return;
+  }
+
+  const alive = w.alive;
+  const g = ctx.createLinearGradient(0, -30, 0, 27);
+  g.addColorStop(0, alive ? '#3f4852' : '#2a2d31'); g.addColorStop(0.45, alive ? '#68727e' : '#3a3e44');
+  g.addColorStop(0.8, alive ? '#8d97a2' : '#4a4e54'); g.addColorStop(1, alive ? '#a9b2bb' : '#55595e');
+  ctx.fillStyle = g;
+  flukes(); ctx.fill();
+  body(); ctx.fill();
+  fin(); ctx.fillStyle = alive ? '#56606b' : '#34383d'; ctx.fill();
+
+  // lit ridge along the back (light comes from above)
+  ctx.strokeStyle = 'rgba(220,235,250,0.22)'; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let i = 1; i <= N - 4; i++) { const p = top[i]; i === 1 ? ctx.moveTo(p[0] - 1, p[1] + 2.2) : ctx.lineTo(p[0], p[1] + 2.2); }
+  ctx.stroke();
+  // soft rim shadow along the belly
+  ctx.strokeStyle = 'rgba(10,20,30,0.25)'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 2; i <= N - 2; i++) { const p = bot[i]; i === 2 ? ctx.moveTo(p[0], p[1] - 1.5) : ctx.lineTo(p[0], p[1] - 1.5); }
+  ctx.stroke();
+  // wrinkled skin behind the head
+  ctx.strokeStyle = 'rgba(25,32,40,0.22)'; ctx.lineWidth = 1;
+  for (let k = 0; k < 6; k++) {
+    const i = 12 + k * 1.4 | 0, p = top[i], q = bot[i];
+    ctx.beginPath(); ctx.moveTo(p[0], p[1] + 6); ctx.quadraticCurveTo(p[0] - 3, (p[1] + q[1]) / 2, p[0] + 1, q[1] - 6); ctx.stroke();
+  }
+  // lower jaw and mouth line
+  ctx.strokeStyle = 'rgba(20,26,32,0.6)'; ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.moveTo(86, bot[1][1] - 4); ctx.quadraticCurveTo(60, bot[4][1] - 3, 28, bot[8][1] - 5); ctx.stroke();
+  // eye with a glint
+  const ey = top[8][1] + 0.62 * (bot[8][1] - top[8][1]);
+  ctx.fillStyle = '#101418'; ctx.beginPath(); ctx.arc(30, ey, 2.4, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(230,240,250,0.7)'; ctx.beginPath(); ctx.arc(30.8, ey - 0.8, 0.8, 0, TAU); ctx.fill();
+  // blowhole
+  ctx.fillStyle = 'rgba(20,26,32,0.55)'; ctx.beginPath(); ctx.ellipse(80, top[1][1] + 1.5, 3, 1, 0, 0, TAU); ctx.fill();
+  ctx.restore();
 }
 
 // The system cursor is hidden only during play (the sonar crosshair replaces it).
@@ -343,11 +501,29 @@ function drawSonar(ctx, game, px) {
   ctx.restore();
 }
 
-function bar(ctx, x, y, w, h, frac, color, label, warn) {
-  ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
-  ctx.fillStyle = warn ? '#ff3b3b' : color; ctx.fillRect(x, y, w * clamp(frac, 0, 1), h);
-  ctx.fillStyle = '#e8f4ff'; ctx.font = '12px system-ui, sans-serif'; ctx.textBaseline = 'middle';
-  ctx.fillText(label, x + w + 10, y + h / 2);
+// HUD style ("Sonar Instrument"): thin cyan lines, Space Mono labels, Space Grotesk text, numbers only where
+// they matter (depth). Fonts load from Google Fonts in index.html; the fallbacks keep it readable offline.
+const HUD = {
+  mono: "'Space Mono', ui-monospace, Menlo, monospace", sans: "'Space Grotesk', system-ui, sans-serif",
+  cyan: '#7FE3F0', ink: '#E6F7FA', text: '#CFEFF5', label: '#9ED9E3', food: '#F2D36B', warn: '#FF8A7A',
+  green: '#7CF29A', track: 'rgba(127,227,240,0.16)', line: 'rgba(127,227,240,0.35)', panel: 'rgba(2,14,26,0.55)',
+};
+function hudFont(ctx, size, mono = false, bold = false) {
+  ctx.font = `${bold ? '700 ' : ''}${size}px ${mono ? HUD.mono : HUD.sans}`;
+}
+function hudLabel(ctx, text, x, y, color = HUD.label) {
+  hudFont(ctx, 11, true); ctx.fillStyle = color;
+  if ('letterSpacing' in ctx) ctx.letterSpacing = '1.5px';
+  ctx.fillText(text, x, y);
+  if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+}
+// thin stat line: LABEL ─────────
+function bar(ctx, x, y, w, frac, color, label, warn) {
+  hudLabel(ctx, label, x, y, warn ? HUD.warn : HUD.label);
+  const bx = x + 48;
+  ctx.fillStyle = HUD.track; ctx.fillRect(bx, y - 2, w, 4);
+  ctx.fillStyle = warn ? HUD.warn : color; ctx.fillRect(bx, y - 2, w * clamp(frac, 0, 1), 4);
+  return bx;
 }
 
 function canAffordAny(w) {
@@ -361,63 +537,82 @@ function drawHUD(ctx, game) {
 
   if (game.state !== 'title') {
     const lowAir = w.oxygen / s.maxOxygen < 0.25;
-    bar(ctx, 20, 20, 200, 12, w.oxygen / s.maxOxygen, '#4fd1ff', 'AIR', lowAir && blinkOn);
-    bar(ctx, 20, 42, 200, 12, w.health / s.maxHealth, '#ff6464', 'HEALTH');
+    // --- top left: four thin stat lines, no numbers
+    const BW = 200, L = 28;
+    bar(ctx, L, 30, BW, w.oxygen / s.maxOxygen, HUD.cyan, 'AIR', lowAir && blinkOn);
+    bar(ctx, L, 48, BW, w.health / s.maxHealth, HUD.ink, 'HP', w.health / s.maxHealth < 0.25 && blinkOn);
     const canSprint = w.energy > s.maxEnergy * s.sprintMinEnergy;
-    bar(ctx, 20, 64, 200, 12, w.energy / s.maxEnergy, canSprint ? '#ffd166' : '#b0894a',
-        canSprint ? 'ENERGY' : 'ENERGY · too tired to sprint', w.energy < s.maxEnergy * 0.12 && blinkOn);
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(20 + 200 * s.sprintMinEnergy - 1, 62, 2, 16); // sprint threshold mark
-    bar(ctx, 20, 86, 200, 12, (w.size - 1) / (G.maxSize - 1), '#c08cff',
-        `SIZE ${w.size.toFixed(2)} / ${G.maxSize} · ${(180 * w.size * CONFIG.bodyMetersPerUnit).toFixed(1)} m long`);
-
-    ctx.font = 'bold 14px system-ui, sans-serif';
-    ctx.fillStyle = canAffordAny(w) && blinkOn ? '#9fe8ff' : '#d8ecf7';
-    ctx.fillText(`${w.points} upgrade point${w.points === 1 ? '' : 's'}  ·  press U to evolve`, 20, 116);
+    const fx = bar(ctx, L, 66, BW, w.energy / s.maxEnergy, canSprint ? HUD.food : '#A88B4A', 'FOOD', w.energy < s.maxEnergy * 0.12 && blinkOn);
+    ctx.fillStyle = HUD.ink; ctx.fillRect(fx + BW * s.sprintMinEnergy - 0.5, 61, 1, 10); // sprint threshold mark
+    bar(ctx, L, 84, BW, (w.size - 1) / (G.maxSize - 1), 'rgba(127,227,240,0.55)', 'SIZE');
     if (game.wanted > 0) { // GTA-style wanted stars
-      ctx.font = 'bold 18px system-ui'; ctx.fillStyle = blinkOn ? '#ffd166' : '#ff9b6a';
-      ctx.fillText(`WANTED ${'★'.repeat(game.wanted)}${'☆'.repeat(CONFIG.wanted.maxStars - game.wanted)}`, 20, 142);
-      // time until the next star drops
-      ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(20, 156, 160, 4);
-      ctx.fillStyle = '#ffd166'; ctx.fillRect(20, 156, 160 * clamp(game.wantedT / CONFIG.wanted.decayTime, 0, 1), 4);
+      hudLabel(ctx, 'WANTED', L, 108, HUD.food);
+      hudFont(ctx, 15, true, true); ctx.fillStyle = blinkOn ? HUD.food : HUD.warn;
+      ctx.fillText(`${'★'.repeat(game.wanted)}${'☆'.repeat(CONFIG.wanted.maxStars - game.wanted)}`, L + 48, 108);
+      ctx.fillStyle = HUD.track; ctx.fillRect(L + 48, 120, 110, 2); // time until the next star drops
+      ctx.fillStyle = HUD.food; ctx.fillRect(L + 48, 120, 110 * clamp(game.wantedT / CONFIG.wanted.decayTime, 0, 1), 2);
     }
 
-    ctx.textAlign = 'right'; ctx.fillStyle = '#e8f4ff';
-    ctx.font = 'bold 22px system-ui, sans-serif';
-    ctx.fillStyle = w.overDepth && blinkOn ? '#ff8080' : '#e8f4ff';
-    ctx.fillText(`${Math.max(0, Math.round(w.y * CONFIG.metersPerUnit))} m`, W - 20, 30);
-    ctx.font = '12px system-ui'; ctx.fillStyle = w.overDepth ? '#ff9b9b' : '#8fa6b8';
-    ctx.fillText(`max dive ${Math.round(s.maxDepth)} m`, W - 20, 76);
-    ctx.fillStyle = '#e8f4ff';
-    ctx.font = '13px system-ui, sans-serif';
-    ctx.fillText(`Score ${w.score}   ·   Eaten ${w.eaten}`, W - 20, 56);
+    // --- right edge: depth thread (0 m at the top) with your dive limit, big depth readout above the quests
+    const depthM = Math.max(0, w.y * CONFIG.metersPerUnit), TX = W - 30, T0 = 28, T1 = H - 40;
+    const scaleM = Math.max(3000, s.maxDepth * 1.1), ty = m => T0 + (T1 - T0) * clamp(m / scaleM, 0, 1);
+    const tg = ctx.createLinearGradient(0, T0, 0, T1);
+    tg.addColorStop(0, 'rgba(127,227,240,0.55)'); tg.addColorStop(1, 'rgba(127,227,240,0.12)');
+    ctx.fillStyle = tg; ctx.fillRect(TX - 1, T0, 2, T1 - T0);
+    for (let m = 500; m < scaleM; m += 500) { ctx.fillStyle = 'rgba(127,227,240,0.3)'; ctx.fillRect(TX - 4, ty(m), 8, 1); }
+    ctx.fillStyle = HUD.warn; ctx.fillRect(TX - 8, ty(s.maxDepth) - 1, 16, 2); // your dive limit
+    const markY = ty(depthM);
+    ctx.save(); ctx.shadowColor = w.overDepth ? HUD.warn : HUD.cyan; ctx.shadowBlur = 14;
+    ctx.fillStyle = w.overDepth ? HUD.warn : HUD.cyan; ctx.beginPath(); ctx.arc(TX, markY, 6, 0, TAU); ctx.fill(); ctx.restore();
+
+    ctx.textAlign = 'right';
+    hudFont(ctx, 36, true, true); ctx.fillStyle = w.overDepth && blinkOn ? HUD.warn : HUD.ink;
+    const dTxt = `${Math.round(depthM)}`; ctx.fillText(dTxt, W - 72, 40);
+    ctx.textAlign = 'left'; hudFont(ctx, 15, true); ctx.fillStyle = HUD.label; ctx.fillText('m', W - 68, 46);
+    ctx.textAlign = 'right';
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '1.5px';
+    hudFont(ctx, 11, true); ctx.fillStyle = w.overDepth ? HUD.warn : HUD.label;
+    ctx.fillText(`LIMIT ${Math.round(s.maxDepth)} M`, W - 54, 68);
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
     ctx.textAlign = 'left';
 
-    drawFoodChain(ctx, game);
     drawQuests(ctx, game);
+    if (game.showChain) drawFoodChain(ctx, game);
+    else drawHunting(ctx, game);
 
-    // Warnings the whale could plausibly hear
+    // --- bottom right: upgrade points (only when you have some)
+    if (w.points > 0) {
+      ctx.textAlign = 'right';
+      const txt = `${w.points} UPGRADE POINT${w.points === 1 ? '' : 'S'} · U`;
+      hudLabel(ctx, txt, W - 54, H - 30, canAffordAny(w) && blinkOn ? HUD.cyan : HUD.text);
+      ctx.textAlign = 'left';
+    }
+
+    // --- top centre: messages and warnings the whale could plausibly hear
     const msgs = [];
     if (game.message) msgs.push([game.message.text, game.message.color]);
-    if (game.pods.some(p => p.alertT > 0)) msgs.push(['Orca calls nearby — you are being hunted', '#ff7b7b']);
-    if (lowAir) msgs.push(['Low air — surface!', '#4fd1ff']);
-    if (w.overDepth) msgs.push(['Too deep — the pressure is crushing you!', '#ff9b9b']);
-    ctx.textAlign = 'center'; ctx.font = 'bold 15px system-ui, sans-serif';
-    const my0 = W > 1200 ? 28 : 150; // below the stat bars on narrow screens
+    if (game.pods.some(p => p.alertT > 0)) msgs.push(['Orca calls nearby — you are being hunted', HUD.warn]);
+    if (lowAir) msgs.push(['Low air — surface!', HUD.cyan]);
+    if (w.overDepth) msgs.push(['Too deep — the pressure is crushing you!', HUD.warn]);
+    ctx.textAlign = 'center'; hudFont(ctx, 13, true);
+    const my0 = W > 1250 ? 34 : 140; // below the stat lines on narrow screens
     msgs.forEach(([m, c], i) => {
-      const tw = ctx.measureText(m).width;
-      ctx.fillStyle = 'rgba(0,8,18,0.5)'; ctx.fillRect(W / 2 - tw / 2 - 8, my0 + i * 24 - 11, tw + 16, 22);
-      ctx.fillStyle = c; ctx.fillText(m, W / 2, my0 + i * 24);
+      const tw = ctx.measureText(m).width, yy = my0 + i * 34;
+      ctx.fillStyle = HUD.panel; ctx.fillRect(W / 2 - tw / 2 - 14, yy - 14, tw + 28, 28);
+      ctx.strokeStyle = HUD.line; ctx.lineWidth = 1; ctx.strokeRect(W / 2 - tw / 2 - 14 + 0.5, yy - 14 + 0.5, tw + 27, 27);
+      ctx.fillStyle = c; ctx.fillText(m, W / 2, yy + 1);
     });
     ctx.textAlign = 'left';
 
     // Fight bar: shown while biting something that takes several bites (struggles, giant squid)
     const fp = game.fight && game.fight.prey;
     if (fp && !fp.dead && fp.maxHp) {
-      const bw = 360, bx = W / 2 - bw / 2, by = H - 50;
-      ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(bx - 2, by - 2, bw + 4, 16);
-      ctx.fillStyle = '#ffd166'; ctx.fillRect(bx, by, bw * Math.max(0, fp.hp) / fp.maxHp, 12);
-      ctx.fillStyle = '#fff3c4'; ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'center';
-      ctx.fillText(`${fp.sp.name.toUpperCase()} — ${game.fight.label}`, W / 2, by - 12); ctx.textAlign = 'left';
+      const bw = 360, bx = W / 2 - bw / 2, by = H - 46;
+      ctx.fillStyle = HUD.track; ctx.fillRect(bx, by, bw, 4);
+      ctx.fillStyle = HUD.food; ctx.fillRect(bx, by, bw * Math.max(0, fp.hp) / fp.maxHp, 4);
+      ctx.textAlign = 'center';
+      hudLabel(ctx, `${fp.sp.name.toUpperCase()} · ${game.fight.label.toUpperCase()}`, W / 2, by - 14, HUD.food);
+      ctx.textAlign = 'left';
     }
 
     drawLearnedIndicators(ctx, game);
@@ -429,7 +624,7 @@ function drawHUD(ctx, game) {
       const sx = (sh.x - game.cam.x) * game.cam.z, sy = (sh.y - game.cam.y) * game.cam.z;
       if (sx > 0 && sx < W && sy > 0 && sy < H) continue;
       const a = Math.atan2(sy - H / 2, sx - W / 2);
-      const ex = clamp(W / 2 + Math.cos(a) * W, 40, W - 40), ey = clamp(H / 2 + Math.sin(a) * H, 140, H - 40);
+      const ex = clamp(W / 2 + Math.cos(a) * W, 40, W - 80), ey = clamp(H / 2 + Math.sin(a) * H, 140, H - 40);
       ctx.save(); ctx.translate(ex, ey); ctx.rotate(a);
       ctx.fillStyle = `rgba(255,165,70,${0.4 + 0.5 * (1 - d / (CONFIG.ship.hearingRange * w.size))})`;
       ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-8, -9); ctx.lineTo(-8, 9); ctx.closePath(); ctx.fill();
@@ -456,7 +651,8 @@ function drawHUD(ctx, game) {
     '',
     'WASD / Arrows — swim      Shift — sprint (burns air + energy)',
     'Left click / Space — sonar beam toward mouse      Right click / E — 360° burst',
-    'U — evolve (spend upgrade points)      M — mute      P — pause + sound settings      Quests (top right) give free upgrades',
+    'U — evolve (spend upgrade points)      F — food chain      M — mute      P — pause + sound settings',
+    'Quests (top right) give free upgrades. The thread on the right edge shows your depth and dive limit.',
     'Surface for air. Orcas hear your clicks. Once you are big, whalers hunt the surface.',
     '',
     'Click or press Enter to dive',
@@ -507,28 +703,41 @@ function drawLearnedIndicators(ctx, game) {
   }
 }
 
+// Bottom left, compact: what you hunt now and how far to the next species. F opens the full food chain.
+function drawHunting(ctx, game) {
+  const w = game.whale, top = w.topSpecies(), next = w.nextSpecies(), H = game.ch, x = 28;
+  const n = Math.min(w.eatenBy[top.id] || 0, CONFIG.diet.unlockAfter);
+  hudLabel(ctx, 'HUNTING', x, H - 58);
+  hudFont(ctx, 18, false, true); ctx.fillStyle = HUD.green; ctx.fillText(top.name, x, H - 36);
+  const tw = ctx.measureText(top.name).width;
+  hudFont(ctx, 14); ctx.fillStyle = HUD.text;
+  ctx.fillText(next ? `  ·  ${n} / ${CONFIG.diet.unlockAfter} to ${next.name}` : '  ·  top of the food chain', x + tw, H - 36);
+  hudLabel(ctx, 'F · FOOD CHAIN', x, H - 16, 'rgba(158,217,227,0.6)');
+}
+
 function drawFoodChain(ctx, game) {
   const w = game.whale, list = CONFIG.species, rowH = 17;
-  const x = 16, y = game.ch - 22 - (list.length + 1) * rowH;
-  ctx.fillStyle = 'rgba(0,8,18,0.55)';
-  ctx.fillRect(x - 6, y - 26, 236, (list.length + 1) * rowH + 34);
+  const x = 28, y = game.ch - 30 - (list.length + 1) * rowH;
+  ctx.fillStyle = HUD.panel;
+  ctx.fillRect(x - 10, y - 30, 312, (list.length + 1) * rowH + 40);
+  ctx.strokeStyle = HUD.line; ctx.lineWidth = 1; ctx.strokeRect(x - 9.5, y - 29.5, 311, (list.length + 1) * rowH + 39);
   { // the kraken: not food, but a discovery
     const yy = y + list.length * rowH + 4, pct = Math.round(100 * game.krakenFraction() / CONFIG.kraken.completeAt);
-    ctx.font = '12px system-ui'; ctx.fillStyle = game.krakenFound ? '#ffd166' : '#5f7080';
+    hudFont(ctx, 12); ctx.fillStyle = game.krakenFound ? HUD.food : '#6F8A96';
     ctx.fillText(game.krakenFound ? 'Kraken' : '??? (something in the abyss)', x + 16, yy);
     ctx.textAlign = 'right';
-    if (game.krakenFound) ctx.fillText(game.krakenDone ? '◉ scanned' : `scanned ${Math.min(99, pct)}%`, x + 222, yy);
+    if (game.krakenFound) ctx.fillText(game.krakenDone ? '◉ scanned' : `scanned ${Math.min(99, pct)}%`, x + 290, yy);
     ctx.textAlign = 'left';
   }
-  ctx.font = 'bold 12px system-ui'; ctx.fillStyle = '#9fb8cc'; ctx.fillText('FOOD CHAIN', x, y - 12);
-  ctx.font = '12px system-ui';
+  hudLabel(ctx, 'FOOD CHAIN · F TO CLOSE', x, y - 14);
+  hudFont(ctx, 12);
   list.forEach((sp, i) => {
     const yy = y + i * rowH + 4, edible = w.canEat(sp), n = w.eatenBy[sp.id] || 0, isTop = sp === w.topSpecies();
     ctx.fillStyle = sp.color; ctx.fillRect(x, yy - 4, 8, 8);
     ctx.fillStyle = edible ? (sp.final ? '#ff9b8a' : '#e8f4ff') : '#5f7080';
     ctx.fillText(`${i + 1}·${sp.name}`, x + 16, yy);
     const pct = Math.min(100, Math.round(100 * (w.scans[sp.id] || 0) / CONFIG.sonar.model.scansForFull));
-    if (pct > 0) { ctx.fillStyle = pct >= 100 ? '#9fe8ff' : '#4f8aa8'; ctx.fillText(pct >= 100 ? '◉' : `${pct}%`, x + 128, yy); }
+    if (pct > 0) { ctx.fillStyle = pct >= 100 ? '#9fe8ff' : '#4f8aa8'; ctx.fillText(pct >= 100 ? '◉' : `${pct}%`, x + 162, yy); }
     ctx.fillStyle = edible ? (sp.final ? '#ff9b8a' : '#e8f4ff') : '#5f7080';
     ctx.textAlign = 'right';
     const r = w.nutrition(sp);
@@ -543,7 +752,7 @@ function drawFoodChain(ctx, game) {
     if (isTop && w.nextSpecies()) { // progress towards unlocking the next species
       text = `${Math.min(n, CONFIG.diet.unlockAfter)}/${CONFIG.diet.unlockAfter} → next`; ctx.fillStyle = '#ffd166';
     }
-    ctx.fillText(text, x + 222, yy);
+    ctx.fillText(text, x + 290, yy);
     ctx.textAlign = 'left';
   });
 }

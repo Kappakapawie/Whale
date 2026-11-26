@@ -118,27 +118,24 @@ class Quests {
 }
 
 // Quest panel (top right, under the depth readout).
+// Active quests, top right under the depth readout (HUD style from render.js): the goal, a thin progress
+// line with the count, and the reward.
 function drawQuests(ctx, game) {
   const qs = game.quests.list, W = game.cw;
   if (!qs.length) return;
-  const pw = 300, x = W - pw - 16, y0 = 116, rowH = 34;
-  ctx.fillStyle = 'rgba(0,8,18,0.55)'; ctx.fillRect(x - 6, y0 - 22, pw + 12, qs.length * rowH + 28);
+  const pw = 270, x = W - 54 - pw, y0 = 104, rowH = 56;
+  ctx.fillStyle = HUD.panel; ctx.fillRect(x - 12, y0 - 18, pw + 24, qs.length * rowH + 26);
   ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
-  ctx.font = 'bold 12px system-ui'; ctx.fillStyle = '#9fb8cc'; ctx.fillText(`QUESTS (${qs.length})`, x, y0 - 10);
+  hudLabel(ctx, 'QUESTS', x, y0);
   qs.forEach((q, i) => {
-    const y = y0 + i * rowH + 6;
-    ctx.font = '12px system-ui'; ctx.fillStyle = '#e8f4ff';
-    ctx.fillText(q.text, x, y);
-    ctx.font = '11px system-ui'; ctx.fillStyle = '#9fe8ff';
-    ctx.fillText(`→ ${q.reward.text}`, x, y + 14);
-    const frac = clamp(q.have / q.need, 0, 1);
-    ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(x + pw - 70, y + 10, 70, 5);
-    ctx.fillStyle = '#9fe8ff'; ctx.fillRect(x + pw - 70, y + 10, 70 * frac, 5);
-    ctx.textAlign = 'right'; ctx.fillStyle = '#8fa6b8';
+    const y = y0 + 22 + i * rowH, frac = clamp(q.have / q.need, 0, 1);
+    hudFont(ctx, 13); ctx.fillStyle = HUD.ink; ctx.fillText(q.text, x, y);
+    ctx.fillStyle = HUD.track; ctx.fillRect(x, y + 13, 90, 3);
+    ctx.fillStyle = HUD.cyan; ctx.fillRect(x, y + 13, 90 * frac, 3);
     const prog = q.type === 'travel' ? `${(q.have / 1000).toFixed(1)}/${q.need / 1000} km`
                : q.type === 'dive' ? `${q.have}/${q.need} m`
                : q.type === 'learn' ? `${Math.round(100 * frac)}%` : `${q.have}/${q.need}`;
-    ctx.fillText(prog, x + pw, y);
-    ctx.textAlign = 'left';
+    hudFont(ctx, 11, true); ctx.fillStyle = HUD.label; ctx.fillText(prog, x + 98, y + 15);
+    hudFont(ctx, 11, true); ctx.fillStyle = HUD.cyan; ctx.fillText(`→ ${q.reward.text}`, x, y + 31);
   });
 }

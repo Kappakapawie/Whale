@@ -478,6 +478,7 @@ class Game {
       if (e.code === 'Space') { this.input.beamHeld = true; e.preventDefault(); }
       if (e.code === 'KeyE') this.input.burstHeld = true;
       if (e.code === 'KeyM') this.sfx.toggleMute();
+      if (e.code === 'KeyF') this.showChain = !this.showChain; // full food chain panel
       if (e.code === 'Enter' && this.state === 'title') this.state = 'playing';
       if (e.code === 'KeyR' && (this.state === 'dead' || this.state === 'won')) { this.reset(); this.state = 'playing'; }
       if (e.code === 'KeyC' && this.state === 'won') this.state = 'playing';
@@ -612,15 +613,15 @@ class Game {
     }
   }
 
-  // Eating: the whale's head must touch the prey. Too-big prey can't be eaten yet;
-  // prey with hp (giant squid) needs several bites.
+  // Eating: the prey must touch the whale's mouth zone (a capsule along the jaw, CONFIG.mouth).
+  // Prey with hp (giant squid, fights) needs several bites.
   updateEating() {
     const w = this.whale;
     if (!w.alive) return;
     const h = w.head;
     for (const p of this.prey) {
       if (p.dead) continue;
-      const touching = dist(h.x, h.y, p.x, p.y) < p.radius + 30 * w.size || pointInPoly(h.x, h.y, p.poly);
+      const touching = w.canReach(p.x, p.y, p.radius) || pointInPoly(h.x, h.y, p.poly);
       if (!touching) continue;
       const sp = p.sp;
       // Struggle: anything above your diet can be fought. The higher the tier, the more bites and damage.
@@ -663,7 +664,7 @@ class Game {
     this.prey = this.prey.filter(p => !p.dead);
     // human swimmers: edible, but every one raises your wanted level
     for (const s of this.swimmers) {
-      if (s.dead || dist(h.x, h.y, s.x, s.y) > s.radius + 30 * w.size) continue;
+      if (s.dead || !w.canReach(s.x, s.y, s.radius)) continue;
       s.dead = true; this.sfx.chomp();
       const SW = CONFIG.swimmers;
       w.energy = Math.min(w.stats.maxEnergy, w.energy + SW.energy); w.score += SW.score; w.eaten++;
@@ -674,7 +675,7 @@ class Game {
     // dead fish: anyone can eat them, any tier
     for (const c of this.carcasses) {
       if (c.dead) continue;
-      if (dist(h.x, h.y, c.x, c.y) > c.radius + 30 * w.size && !pointInPoly(h.x, h.y, c.poly)) continue;
+      if (!w.canReach(c.x, c.y, c.radius) && !pointInPoly(h.x, h.y, c.poly)) continue;
       c.dead = true; this.sfx.chomp();
       w.scavenge(c.sp, Math.max(0.1, c.meat));
       this.popup(c.x, c.y - 20, `Scavenged a dead ${c.sp.name}`, '#bfe3c0');
