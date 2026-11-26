@@ -86,7 +86,7 @@ class Whale {
   struggleFor(sp) {
     const gap = this.tierGap(sp), S = CONFIG.struggle;
     if (gap <= 0) return null;
-    return { gap, bites: S.baseBites + S.bitesPerTier * gap, damage: S.damagePerTier * gap,
+    return { gap, bites: S.baseBites + S.bitesPerTier * gap, damage: S.damageBase * Math.pow(S.damageGrowth, gap - 1),
              label: S.labels[Math.min(gap, S.labels.length - 1)] };
   }
   // Eat a carcass: energy + some growth, no diet progress.

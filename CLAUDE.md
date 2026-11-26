@@ -115,8 +115,11 @@ echoes are the only way to see.
   been within `huntRange` x size for `graceTime` (20 s), a random unlocked species (not necessarily the best) is
   spawned out of sight but inside sonar beam reach. Sparse is fine; empty is not.
 - **Struggle-eating - any tier.** Anything above your diet can be attacked (`whale.struggleFor(sp)`):
-  bites = baseBites + bitesPerTier x gap, each bite costs damagePerTier x gap of max health. 1 up ~10-15%, 2 up ~40%,
-  3 up ~80%, 4+ up is fatal without health/skin/jaws upgrades. Quests only ask for fights up to 2 tiers up.
+  bites = baseBites + bitesPerTier x gap, each bite costs damageBase x damageGrowth^(gap-1) of max health (steep:
+  small gaps are cheap, only really big fish hurt). 1 up ~4%, 2 up ~12%, 3 up ~32%, 4 up ~80%, 5+ up is fatal
+  without health/skin/jaws upgrades. Quests only ask for fights up to 2 tiers up.
+- **Upgrades are few but strong.** Every upgrade has `max` 3 levels with a big effect per level (e.g. +40% health),
+  so each scarce point is felt. Quest bonus levels may go `bonusOverMax` (1) beyond max.
 - **Dead fish** (`Carcass` in fauna.js, `CONFIG.carcass`). Carcasses of random species (up to 3 tiers above your
   diet) sink belly-up and rest on the seabed. You can eat any of them (energy + some growth, no diet progress);
   scavengers (octopus, toothfish, sleeper shark, crabs) smell them and eat them too. They rot after `life` s.
