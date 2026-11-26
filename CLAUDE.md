@@ -20,6 +20,11 @@ player has to keep clicking to build a mental image of the world.
 Lighting is depth-based: bright and readable near the surface, fading to near-black in the deep. Down there, sonar
 echoes are the only way to see.
 
+**Second act - the cosmic realm.** Mythical creatures live in the deepest water. At the floor of a rare trench
+(~2900 m, the deepest point) they gather around you and you ascend - one-way - into a godly state where the
+environment becomes outer space (an "intergalactic soup" of stars, nebulae, galaxies and planets). It is the same
+game reskinned, with its own food chain of cosmic fish ending in the Star Serpent boss.
+
 ## Hard design rules
 
 - **Never leak information the whale shouldn't have.** No minimap, no always-visible enemy markers in the dark, no
@@ -66,6 +71,21 @@ echoes are the only way to see.
   rebuild identically. Code that probes far away (e.g. the kraken spawn) must use `World.isGenerated` so it
   doesn't lock in segments early. Between segments the seabed slopes inside the deeper one (flat tops stay flat).
   The start (x = 0) is always a small shelf with open sea right next to it on both sides.
+- **Mythical creatures** (`CONFIG.fauna` entries with `mythic: true`: sea serpent, leviathan, ghost jelly, lantern
+  dragon, bone eel; shapes in fauna.js) live only in the deepest water (depthMin >= 4500 units). Not food, they
+  ignore you; seen by their glow and on sonar.
+- **The ascension** (`Game.updateAscension`, `CONFIG.ascension`): rare `trench` segments (~2900 m, no ridges, weight
+  grows with progress) are the deepest point, reachable only by a whale that can dive that deep. Within
+  `triggerDist` of the trench floor the mythical creatures gather in a ring around you (`Fauna.orbit`), a violet glow
+  builds and a white flash takes you into the cosmic realm (`Game.enterCosmic`). One-way.
+- **The cosmic realm** (`game.cosmic`, `whale.cosmic`, `CONFIG.cosmic`): a new `World` with `{ cosmic: true }` (only
+  'void' segments, cosmic rock floor, no decor/cables), backdrop `drawCosmos` (parallax nebulae, stars, spiral
+  galaxies, planets), flat light darkness so stars and glows stay bright. Godly rules: no air, no pressure, no
+  surface (soft `ceiling`), no ships/orcas/kraken/humans/ambient ocean life - but hunger stays. Its food chain is the
+  `cosmic: true` species at the end of `CONFIG.species` (star minnow -> comet eel -> nebula ray -> moon jelly ->
+  void squid -> starfin -> Star Serpent boss); they glow (`sp.glow`). Use `Game.realmSpecies()` (never the raw list)
+  for spawning, meals, carcasses and quests; `Whale.nextSpecies()` never crosses realms. HUD shows "∞ / BEYOND THE
+  DEEP" and no depth thread.
 - **Open water.** The ocean is mostly deep (`abyssDepth` 6500, ~70% deeper than 2000 m) with few rocks and rare,
   tall pillars. Keep it open; don't add clutter without asking.
 - **Growth drives everything — bigger means slower, heavier and more zoomed out.** `whale.size` goes from 1 to
@@ -198,12 +218,12 @@ then open http://localhost:8123 (the `deep-echo` entry in `.claude/launch.json` 
 | `src/util.js` | Math helpers, `lightAt(y)`, ray/segment intersection, polygons, solids |
 | `src/world.js` | Endless seabed from progress-weighted segments (beach/shelf/open/deep), chunks, rocks, pillars, collision |
 | `src/sonar.js` | Click emission, ray casting, face extraction, echo lifetime |
-| `src/fauna.js` | Ambient fauna, coast swimmers, coasts + beach scenery, seabed decorations, glow pass |
+| `src/fauna.js` | Ambient + mythical fauna (ring orbit for the ascension), coast swimmers, beach scenery, seabed decor, glow pass |
 | `src/quests.js` | Quest generation, tracking, rewards, quest panel |
 | `src/kraken.js` | The Kraken: behaviour, scan cells, partial-reveal hologram |
 | `src/entities.js` | `SHAPES`, `Whale` (growth, upgrades), `Prey` (all species), `Pod` + `Orca`, `Ship` + `Harpoon` |
 | `src/audio.js` | Procedural WebAudio sounds (clicks, echoes, hurt, harpoon, breath), volume channels + saved volumes |
-| `src/render.js` | Zoomed world drawing, water shading, whale body model, darkness overlay, echoes, HUD, food chain panel, menus |
+| `src/render.js` | Zoomed world drawing, water shading, cosmic backdrop, whale body model, darkness overlay, echoes, HUD, food chain panel, menus |
 | `src/main.js` | `Game` class: input, spawning/despawning around the whale, update loop, state machine |
 
 ## Current gameplay (v0.2)

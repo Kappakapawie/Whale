@@ -5,13 +5,17 @@
 // chunks can be thrown away and rebuilt identically. Neighbouring segments blend over a smooth slope.
 // Rocks and pillars come from a per-chunk seeded RNG, so they're the same every time a chunk is rebuilt.
 class World {
-  constructor(seed = Math.floor(Math.random() * 1e9), progressFn = () => 0) {
+  // opts.cosmic: the space reskin after the ascension - only 'void' segments (CONFIG.cosmic.types), no decor or cables.
+  constructor(seed = Math.floor(Math.random() * 1e9), progressFn = () => 0, opts = {}) {
     this.seed = seed;
     this.progressFn = progressFn;
+    this.cosmic = !!opts.cosmic;
+    this.types = this.cosmic ? CONFIG.cosmic.types : CONFIG.segments.types;
     const S = CONFIG.segments;
     this.segRng = { L: mulberry32((seed ^ 0x51ED27) >>> 0), R: mulberry32((seed ^ 0xA11CE5) >>> 0) };
     this.segCount = { L: 0, R: 0 };
-    this.segs = [{ type: S.start.type, x0: -S.start.halfWidth, x1: S.start.halfWidth, depth: CONFIG.world.shelfDepth }];
+    this.segs = this.cosmic ? [{ type: 'void', x0: -3000, x1: 3000, depth: 6600 }]
+      : [{ type: S.start.type, x0: -S.start.halfWidth, x1: S.start.halfWidth, depth: CONFIG.world.shelfDepth }];
     this.D = CONFIG.world.depth;
     this.step = 50;
     this.chunkW = CONFIG.world.chunkWidth;
@@ -33,7 +37,7 @@ class World {
 
   // ---- segments
   rollType(rng) {
-    const T = CONFIG.segments.types, p = clamp(this.progressFn(), 0, 1);
+    const T = this.types, p = clamp(this.progressFn(), 0, 1);
     const ws = Object.keys(T).map(k => [k, lerp(T[k].weight[0], T[k].weight[1], p)]);
     let r = rng() * ws.reduce((a, e) => a + e[1], 0);
     for (const [k, w] of ws) if ((r -= w) <= 0) return k;
@@ -43,8 +47,8 @@ class World {
   extend(side) {
     const S = CONFIG.segments, rng = this.segRng[side], n = this.segCount[side]++;
     const roll = this.rollType(rng);
-    const type = n === 0 ? S.start.neighbour : roll; // open water is always right next to the start
-    const T = S.types[type], w = lerp(T.width[0], T.width[1], rng()), depth = lerp(T.depth[0], T.depth[1], rng());
+    const type = this.cosmic ? roll : n === 0 ? S.start.neighbour : roll; // open water is always right next to the start
+    const T = this.types[type], w = lerp(T.width[0], T.width[1], rng()), depth = lerp(T.depth[0], T.depth[1], rng());
     if (side === 'R') { const e = this.segs[this.segs.length - 1]; this.segs.push({ type, x0: e.x1, x1: e.x1 + w, depth }); }
     else { const e = this.segs[0]; this.segs.unshift({ type, x0: e.x0 - w, x1: e.x0, depth }); }
   }
@@ -69,7 +73,7 @@ class World {
     if (seg.type === 'beach') return seg.depth + 15 * Math.sin(x / 240 + p[1]); // flat sandy plateau
     const m = clamp((seg.depth - c.shelfDepth) / (c.abyssDepth - c.shelfDepth), 0, 1);
     let d = seg.depth;
-    if (seg.type !== 'shelf') {
+    if (seg.type !== 'shelf' && seg.type !== 'trench') { // (the trench floor stays the deepest point)
       const ridge = Math.max(0, this.noise1(x, 1100, 2) - 0.65) / 0.35; // occasional undersea ridges
       d -= m * c.ridgeHeight * ridge * ridge * (3 - 2 * ridge);
     }
@@ -90,11 +94,11 @@ class World {
   // 0 = shallow shelf, 1 = abyss (deep sea segments). Used for pillars.
   abyssness(x) {
     const s = this.segAt(x), c = CONFIG.world;
-    return s.type === 'deep' ? 1 : s.type === 'beach' ? 0 : clamp((s.depth - c.shelfDepth) / (c.abyssDepth - c.shelfDepth), 0, 1);
+    return s.type === 'deep' || s.type === 'trench' || s.type === 'void' ? 1 : s.type === 'beach' ? 0 : clamp((s.depth - c.shelfDepth) / (c.abyssDepth - c.shelfDepth), 0, 1);
   }
 
   floorRaw(x) {
-    const S = CONFIG.segments, R = S.types.deep.width[1] * S.maxRampShare;
+    const S = CONFIG.segments, R = 9000 * S.maxRampShare; // the widest segment's longest slope
     this.cover(x - R, x + R);
     const i = this.segIndex(x), s = this.segs[i], prev = this.segs[i - 1], next = this.segs[i + 1];
     if (prev) { const [lo, hi] = this.slopeBetween(prev, s); if (x >= lo && x < hi) return this.blend(prev, s, x, lo, hi); }
@@ -181,14 +185,14 @@ class World {
     }
     // Seafloor cable lying along the seabed across the whole chunk (consistent: built from the seeded rng).
     const cables = [];
-    if (rng() < CONFIG.cables.chancePerChunk && Math.abs(x0) > 800) {
+    if (!this.cosmic && rng() < CONFIG.cables.chancePerChunk && Math.abs(x0) > 800) {
       const line = [];
       for (let x = x0; x <= x0 + cw; x += this.step) line.push([x, this.floorRaw(x) - CONFIG.cables.lift]);
       const poly = [...line.map(p => [p[0], p[1] - 3]), ...line.slice().reverse().map(p => [p[0], p[1] + 3])];
       const solid = makeSolid('cable', poly);
       cables.push({ line, solid, x0: solid.x0, x1: solid.x1, y0: solid.y0, y1: solid.y1 });
     }
-    const decor = buildDecor(this, x0, cw, rng);
+    const decor = this.cosmic ? [] : buildDecor(this, x0, cw, rng);
     return { floor, rocks, cables, decor };
   }
 

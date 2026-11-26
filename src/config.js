@@ -26,6 +26,7 @@ const CONFIG = {
       shelf: { weight: [0.40, 0.07], width: [2000, 5000], depth: [375, 625] },   // ~150-250 m
       open:  { weight: [0.35, 0.40], width: [2500, 6000], depth: [1500, 3750] }, // ~600-1500 m
       deep:  { weight: [0.10, 0.50], width: [3500, 8000], depth: [5500, 6500] }, // ~2200-2600 m
+      trench: { weight: [0.04, 0.12], width: [2600, 3400], depth: [7200, 7300] }, // ~2900 m: the deepest point (ascension)
     },
     start: { type: 'shelf', halfWidth: 900, neighbour: 'open' },
     ramp: 700, rampPerDepth: 0.6, maxRampShare: 0.45, lookahead: 8000,
@@ -213,7 +214,46 @@ const CONFIG = {
     { id: 'giant',     name: 'Giant Squid',    shape: 'giantSquid',length: 460, color: '#b88d6a', minSize: 2.6,      // 12 m
       mass: 300, ep: 200, energy: 400, depthMin: 3500, depthMax: 5500, count: 1, speed: 30, fleeSpeed: 80,
       hp: 120, final: true, attack: { damage: 12, cooldown: 0.9, range: 700, chaseSpeed: 55, chaseTime: 10, rest: 15 } },
+
+    // --- The cosmic food chain (cosmic: true): only exists after the ascension (CONFIG.ascension), in the
+    // "intergalactic soup". Same rules as the ocean: eat 10 of your top species to unlock the next. They glow
+    // (sp.glow, drawn after the darkness). Flee speeds stay below a full-grown whale's sprint (~120).
+    { id: 'starminnow', name: 'Star Minnow',  shape: 'fish',      length: 30,  color: '#cfeeff', minSize: 3, cosmic: true,
+      mass: 60,  ep: 60,  energy: 120, depthMin: 600,  depthMax: 5800, count: 3, group: 7, speed: 45, fleeSpeed: 105,
+      glow: { c: [190, 235, 255], pts: [[0, 0]], r: 6, speed: 3 } },
+    { id: 'cometeel',   name: 'Comet Eel',    shape: 'oarfish',   length: 180, color: '#8fd4ff', minSize: 3, cosmic: true,
+      mass: 90,  ep: 90,  energy: 160, depthMin: 600,  depthMax: 5800, count: 4, speed: 40, fleeSpeed: 105,
+      glow: { c: [120, 210, 255], pts: [[50, 0], [-50, 0]], r: 10, speed: 2 } },
+    { id: 'nebularay',  name: 'Nebula Ray',   shape: 'ray',       length: 280, color: '#b48cff', minSize: 3, cosmic: true,
+      mass: 130, ep: 130, energy: 200, depthMin: 600,  depthMax: 5800, count: 4, speed: 30, fleeSpeed: 95,
+      glow: { c: [190, 140, 255], pts: [[-40, 0], [20, -6], [20, 6]], r: 14, speed: 1.4 } },
+    { id: 'moonjelly',  name: 'Moon Jelly',   shape: 'jelly',     length: 320, color: '#e8e0c0', minSize: 3, cosmic: true,
+      mass: 170, ep: 170, energy: 240, depthMin: 600,  depthMax: 5800, count: 4, speed: 14, fleeSpeed: 60,
+      glow: { c: [255, 240, 200], pts: [[10, 0]], r: 26, speed: 1 } },
+    { id: 'voidsquid',  name: 'Void Squid',   shape: 'squid',     length: 420, color: '#4a3d8a', minSize: 3, cosmic: true,
+      mass: 220, ep: 220, energy: 300, depthMin: 600,  depthMax: 5800, count: 3, speed: 30, fleeSpeed: 95,
+      glow: { c: [140, 120, 255], pts: [[30, 0], [-30, -8], [-30, 8]], r: 12, speed: 2.2 },
+      attack: { damage: 14, cooldown: 1.4, range: 500, chaseSpeed: 60, chaseTime: 5, rest: 30 } },
+    { id: 'starfin',    name: 'Starfin',      shape: 'tuna',      length: 460, color: '#ffd98a', minSize: 3, cosmic: true,
+      mass: 280, ep: 280, energy: 360, depthMin: 600,  depthMax: 5800, count: 3, speed: 45, fleeSpeed: 110,
+      glow: { c: [255, 215, 140], pts: [[2, -26], [2, 24], [-46, 0]], r: 12, speed: 2.8 } },
+    { id: 'starserpent', name: 'Star Serpent', shape: 'serpent',  length: 1100, color: '#6a4cff', minSize: 3, cosmic: true,
+      mass: 600, ep: 1000, energy: 800, depthMin: 1500, depthMax: 5000, count: 1, speed: 30, fleeSpeed: 70,
+      glow: { c: [170, 140, 255], pts: [[46, -3], [30, 0], [10, 0], [-10, 0], [-30, 0]], r: 14, speed: 1.6 },
+      hp: 260, final: true, attack: { damage: 16, cooldown: 1.0, range: 900, chaseSpeed: 55, chaseTime: 10, rest: 15 } },
   ],
+
+  // The deepest point: rare 'trench' segments (CONFIG.segments) drop to ~2900 m - only a whale that can dive that
+  // deep (size + Pressure Tolerance) reaches the bottom. Within triggerDist (x size) of the trench floor the
+  // mythical creatures gather in a ring around you (ringCount at ringRadius x size), and after gatherTime you
+  // ascend: a flash, and the ocean becomes outer space for good (one-way). See Game.updateAscension.
+  ascension: { triggerDist: 260, gatherTime: 7, flashTime: 3, ringCount: 10, ringRadius: 300, ringSpeed: 0.12 },
+
+  // The cosmic realm ("intergalactic soup"): the same game in a space reskin. No air (godly), hunger stays, no
+  // ships/orcas/kraken/humans. The floor is far-away cosmic rock; `ceiling` gently pushes you back down (y).
+  // darkness = flat dimming over the world (stars and glows stay bright).
+  cosmic: { ceiling: 250, darkness: 0.35,
+            types: { void: { weight: [1, 1], width: [4000, 9000], depth: [6200, 7000] } } },
 
   orca: {
     podSize: 3, depthMin: 30, depthMax: 1500,
@@ -287,6 +327,19 @@ const CONFIG = {
       glow: { c: [120, 190, 255], pts: [[-20, 0], [20, 0]], r: 8, speed: 1.5 } },
     { id: 'angler',    name: 'Anglerfish',     shape: 'angler',  length: 30,   color: '#3a3530', depthMin: 2500, depthMax: 7000, count: 4, speed: 8, lure: true,
       glow: { c: [180, 255, 210], pts: [[62, -42]], r: 16, speed: 1.2 } },
+    // Mythical creatures (mythic: true): only in the deepest water (deep sea and trench segments), more of them the
+    // deeper you go. Not food, they ignore you; mostly seen by their glow and on sonar. At the trench floor they
+    // gather around you before the ascension.
+    { id: 'serpent',   name: 'Sea Serpent',    shape: 'serpent',   length: 900,  color: '#24414a', depthMin: 4500, depthMax: 7300, count: 1, spawnChance: 0.4, speed: 30, mythic: true,
+      glow: { c: [90, 230, 210], pts: [[46, -3], [30, 0], [14, 0], [-2, 0], [-18, 0], [-34, 0]], r: 10, speed: 1.3 } },
+    { id: 'leviathan', name: 'Leviathan',      shape: 'leviathan', length: 1700, color: '#151c24', depthMin: 5200, depthMax: 7300, count: 1, spawnChance: 0.25, speed: 20, mythic: true,
+      glow: { c: [255, 120, 90], pts: [[40, -6]], r: 18, speed: 0.6 } },
+    { id: 'ghostjelly', name: 'Ghost Jelly',   shape: 'jelly',     length: 520,  color: '#a8b8d8', depthMin: 4800, depthMax: 7300, count: 1, spawnChance: 0.35, speed: 6, drift: true, mythic: true,
+      glow: { c: [170, 200, 255], pts: [[0, -14], [0, 14], [20, 0], [-30, 0]], r: 20, speed: 0.9 } },
+    { id: 'dragon',    name: 'Lantern Dragon', shape: 'dragon',    length: 280,  color: '#2a2230', depthMin: 4500, depthMax: 7300, count: 2, spawnChance: 0.4, speed: 40, mythic: true,
+      glow: { c: [255, 200, 120], pts: [[60, -30], [20, 4], [-10, 4], [-40, 2]], r: 9, speed: 2 } },
+    { id: 'boneeel',   name: 'Bone Eel',       shape: 'serpent',   length: 420,  color: '#cfc6b0', depthMin: 4500, depthMax: 7300, count: 2, spawnChance: 0.4, speed: 35, mythic: true,
+      glow: { c: [220, 230, 255], pts: [[46, -3]], r: 7, speed: 2.5 } },
     { id: 'crab',      name: 'Deep-sea Crab',  shape: 'crab',    length: 22,   color: '#9a6a3a', depthMin: 0,    depthMax: 7500, count: 6, speed: 8, bottom: true, scavenger: true },
   ],
   // Seabed decorations per chunk (kelp/reefs in the shallows, sponges/corals mid-depth, sea pens/tube worms/whale falls deep).

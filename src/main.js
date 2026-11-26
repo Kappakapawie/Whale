@@ -35,6 +35,8 @@ class Game {
     this.locks = new Map(); this.acquired = new Map(); // Echo Lock state
     this.time = 0; this.flash = 0; this.popTimer = 0;
     this.message = null; this.giantDefeated = false; this.humansAnnounced = false;
+    this.finalsBeaten = new Set(); this.wonSpecies = null;
+    this.cosmic = false; this.ascend = null; this.ascendFx = 0; // the ascension to the cosmic realm
     this.noMealT = 0; this.lastMealSpawn = null; this.fight = null;
     this.humanHeat = 0; this.whaleIntel = null; this.heatStage = 0;
     this.cam = { x: 0, y: 0, z: 1 };
@@ -55,6 +57,53 @@ class Game {
     const sizeF = (w.size - 1) / (G.maxSize - 1);
     const lv = U.reduce((a, u) => a + Math.min(u.max, (w.levels[u.id] || 0) + (w.bonusLevels[u.id] || 0)), 0);
     return clamp((sizeF + lv / U.reduce((a, u) => a + u.max, 0)) / 2, 0, 1);
+  }
+
+  // The food chain of the realm you are in (the ocean, or the cosmic one after the ascension).
+  realmSpecies() { return CONFIG.species.filter(sp => !!sp.cosmic === this.cosmic); }
+
+  // ------------------------------------------------------------ the ascension (trench floor -> cosmic realm)
+  // Reaching the floor of a trench segment (~2900 m) gathers the mythical creatures in a ring around you; after
+  // gatherTime there is a flash and you are in outer space for good (one-way).
+  updateAscension(dt) {
+    const w = this.whale, A = CONFIG.ascension;
+    this.ascendFx = Math.max(0, this.ascendFx - dt / A.flashTime);
+    if (this.cosmic || !w.alive) return;
+    if (!this.ascend) {
+      if (this.world.segAt(w.x).type !== 'trench' || this.world.floorAt(w.x) - w.y > A.triggerDist * w.size) return;
+      this.ascend = { t: 0 };
+      this.say('The deepest point. Something ancient gathers around you...', 6, '#d8c8ff');
+      const mythic = CONFIG.fauna.filter(d => d.mythic);
+      for (let i = 0; i < A.ringCount; i++) {
+        const def = mythic[i % mythic.length], a = i / A.ringCount * TAU, r = A.ringRadius * w.size * rand(1.2, 1.5);
+        const f = new Fauna(def, w.x + Math.cos(a) * r, w.y + Math.sin(a) * r * 0.6);
+        f.orbit = { a, r, r0: r, dir: i % 2 ? 1 : -1 };
+        this.fauna.push(f);
+      }
+      return;
+    }
+    this.ascend.t += dt;
+    const half = A.flashTime * 0.5, fT = this.ascend.t - (A.gatherTime - half);
+    if (fT > 0) this.ascendFx = Math.min(1, fT / half); // the flash builds up over the last half flash time
+    if (this.ascend.t >= A.gatherTime) this.enterCosmic();
+  }
+
+  enterCosmic() {
+    const w = this.whale;
+    this.cosmic = true; this.ascend = null; this.ascendFx = 1; w.cosmic = true;
+    this.world = new World(undefined, () => this.progress(), { cosmic: true });
+    w.y = 3000; w.vx = 0; w.vy = 0; w.updatePoly();
+    this.prey = []; this.groups = []; this.pods = []; this.orcas = []; this.ships = []; this.harpoons = [];
+    this.fauna = []; this.swimmers = []; this.carcasses = []; this.kraken = null; this.gore = { chunks: [], clouds: [] };
+    this.wanted = 0; this.humanHeat = 0; this.whaleIntel = null; this.fight = null;
+    this.sonar.echoes = []; this.sonar.models = []; this.sonar.pings = [];
+    const first = CONFIG.species.find(sp => sp.cosmic);
+    w.diet.add(first.id); // the cosmic food chain starts here
+    this.quests = new Quests(this);
+    this.world.ensureAround(w.x, this.despawnRadius());
+    this.managePopulation(true);
+    this.updateCamera(1, true);
+    this.say('You have ascended. The deep opens into the stars.', 6, '#d8c8ff');
   }
 
   say(text, secs = 4, color = '#e8f4ff') { this.message = { text, t: secs, color }; }
@@ -80,8 +129,8 @@ class Game {
     const halfView = this.cw / (2 * this.cam.z);
     const minD = initial ? 700 : Math.max(1600, halfView + 400);
 
-    for (const sp of CONFIG.species) {
-      if (sp.final && this.giantDefeated) continue;
+    for (const sp of this.realmSpecies()) {
+      if (sp.final && this.finalsBeaten.has(sp.id)) continue;
       if (sp.group) {
         const groups = this.groups.filter(g => g.sp === sp);
         for (let i = groups.length; i < sp.count; i++) this.spawnGroup(sp, minD);
@@ -99,20 +148,20 @@ class Game {
       }
     }
 
-    for (let i = 0; this.pods.length < P.pods && i < 3; i++) this.spawnPod(minD);
+    for (let i = 0; !this.cosmic && this.pods.length < P.pods && i < 3; i++) this.spawnPod(minD);
     this.manageKraken();
     this.manageFauna(minD);
     // dead fish drifting down (random species up to a few tiers above your diet)
     const CC = CONFIG.carcass;
     if (this.carcasses.length < CC.count && Math.random() < CC.spawnChance) {
       const topI = CONFIG.species.indexOf(w.topSpecies());
-      const pool = CONFIG.species.filter((sp, i) => !sp.final && i <= topI + CC.maxTierAbove);
+      const pool = this.realmSpecies().filter(sp => !sp.final && CONFIG.species.indexOf(sp) <= topI + CC.maxTierAbove);
       const sp = pool[randInt(0, pool.length - 1)], p = this.spawnPoint(sp, minD);
       if (p) this.carcasses.push(new Carcass(sp, p.x, p.y));
     }
 
     const SC = CONFIG.ship;
-    const wantShips = (w.size >= CONFIG.growth.humansAtSize ? Math.round(P.ships + this.humanHeat * (SC.maxShips - P.ships)) : 0)
+    const wantShips = this.cosmic ? 0 : (w.size >= CONFIG.growth.humansAtSize ? Math.round(P.ships + this.humanHeat * (SC.maxShips - P.ships)) : 0)
                     + Math.ceil(this.wanted) * CONFIG.wanted.shipsPerStar;
     // too many ships (wanted level dropped): let the farthest one that is out of sight sail away
     if (this.ships.length > wantShips) {
@@ -194,8 +243,8 @@ class Game {
     if (this.noMealT < grace) return;
     this.noMealT = grace - D.retryTime; // if spawning fails, try again a bit later
 
-    let options = CONFIG.species.filter(sp => w.canEat(sp) && !sp.final && w.nutrition(sp) >= D.minWorth);
-    if (!options.length) options = CONFIG.species.filter(sp => w.canEat(sp) && !sp.final).slice(-1);
+    let options = this.realmSpecies().filter(sp => w.canEat(sp) && !sp.final && w.nutrition(sp) >= D.minWorth);
+    if (!options.length) options = this.realmSpecies().filter(sp => w.canEat(sp) && !sp.final).slice(-1);
     // favour the top of your diet (that's what feeds you and moves you up the chain), but not exclusively
     const topI = CONFIG.species.indexOf(w.topSpecies());
     options = options.map(sp => ({ sp, k: Math.random() * Math.pow(1 + Math.max(0, 4 - (topI - CONFIG.species.indexOf(sp))), 2) }))
@@ -243,6 +292,7 @@ class Game {
 
   updateHumans(dt) {
     const w = this.whale, SC = CONFIG.ship;
+    if (this.cosmic) return;
     if (w.size < CONFIG.growth.humansAtSize && this.wanted <= 0) return;
     if (w.size >= CONFIG.growth.humansAtSize) this.humanHeat = Math.min(1, this.humanHeat + dt / SC.heatRampTime);
     const stage = this.humanHeat >= 1 ? 3 : this.humanHeat >= 0.66 ? 2 : this.humanHeat >= 0.33 ? 1 : 0;
@@ -306,6 +356,7 @@ class Game {
     return null;
   }
   manageFauna(minD) {
+    if (this.cosmic) return; // the ocean's ambient life stays behind
     const w = this.whale, SW = CONFIG.swimmers;
     for (const def of CONFIG.fauna) {
       const leaders = this.fauna.filter(f => f.def === def && !f.leader).length;
@@ -331,6 +382,7 @@ class Game {
 
   // One kraken roams the abyss. If you get very far from it, it is moved somewhere ahead of you.
   manageKraken() {
+    if (this.cosmic) { this.kraken = null; return; }
     const K = CONFIG.kraken, w = this.whale;
     if (this.kraken && Math.abs(this.kraken.x - w.x) < K.despawnDist) return;
     for (let tries = 0; tries < 120; tries++) {
@@ -562,7 +614,7 @@ class Game {
     this.cam.z += (tz - this.cam.z) * (snap ? 1 : Math.min(1, dt * 1.5));
     const vw = this.cw / this.cam.z, vh = this.ch / this.cam.z;
     const tx = w.x - vw / 2 + w.vx * 0.4;
-    const ty = clamp(w.y - vh / 2 + w.vy * 0.3, -sky, Math.max(-sky, D - vh));
+    const ty = this.cosmic ? w.y - vh / 2 + w.vy * 0.3 : clamp(w.y - vh / 2 + w.vy * 0.3, -sky, Math.max(-sky, D - vh));
     this.cam.x += (tx - this.cam.x) * k;
     this.cam.y += (ty - this.cam.y) * k;
   }
@@ -660,7 +712,8 @@ class Game {
         this.say(`Your diet grows: you can now hunt ${nx.name}! +${pts} upgrade point${pts > 1 ? 's' : ''}${w.isSquid(nx) ? ' (squid bonus!)' : ''}`, 5, '#ffd166');
       }
       if (sp.final) {
-        this.giantDefeated = true; this.state = 'won';
+        this.finalsBeaten.add(sp.id); if (!sp.cosmic) this.giantDefeated = true;
+        this.wonSpecies = sp; this.state = 'won';
         this.saveBest();
       }
     }
@@ -780,6 +833,7 @@ class Game {
 
     this.flash = Math.max(0, this.flash - dt * CONFIG.damageFx.decay);
     this.updateGore(dt);
+    this.updateAscension(dt);
     this.updateCamera(dt);
 
     if (!w.alive && CONFIG.debug.noDeath) this.respawnAtSurface();
@@ -790,7 +844,7 @@ class Game {
   // Prototype "saves": stage 1 = new game ... stage 5 = everything up to the giant squid. One fraction f
   // (CONFIG.debug.stages) drives size, diet, eaten counts, upgrade levels, species scans and kraken scan.
   applyStage(stage) {
-    const w = this.whale, f = CONFIG.debug.stages[stage - 1], G = CONFIG.growth, list = CONFIG.species;
+    const w = this.whale, f = CONFIG.debug.stages[stage - 1], G = CONFIG.growth, list = CONFIG.species.filter(s => !s.cosmic);
     w.size = 1 + (G.maxSize - 1) * f;
     w.mass = G.massForMax * f * f; // inverse of size = 1 + (max-1) * sqrt(mass / massForMax)
     const top = Math.round(f * (list.length - 2)); // never past the oarfish: the giant squid stays the boss fight

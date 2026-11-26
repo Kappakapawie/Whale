@@ -18,6 +18,13 @@ Object.assign(SHAPES, {
            [-10, 18], [20, 20], [40, 16], [48, 12]],
   crab: [[40, 0], [50, -10], [42, -14], [30, -6], [20, -14], [-20, -14], [-30, -6], [-42, -14], [-50, -10], [-40, 0],
          [-30, 8], [-36, 14], [-20, 8], [20, 8], [36, 14], [30, 8]],
+  // mythical creatures (and the Star Serpent): long and thin, frilled, horned
+  serpent: [[50, 0], [46, -5], [38, -6], [30, -3], [20, -5], [10, -3], [0, -5], [-10, -3], [-20, -5], [-30, -3], [-40, -4],
+            [-50, -8], [-46, 0], [-50, 4], [-40, 3], [-30, 3], [-20, 4], [-10, 3], [0, 4], [10, 3], [20, 4], [30, 3], [38, 5], [46, 4]],
+  leviathan: [[50, 2], [44, -10], [34, -14], [30, -22], [24, -15], [10, -18], [4, -28], [-4, -18], [-20, -16], [-24, -24],
+              [-30, -14], [-42, -8], [-50, -18], [-46, 0], [-50, 16], [-40, 6], [-20, 12], [0, 14], [20, 13], [38, 9]],
+  dragon: [[50, 2], [42, -6], [30, -8], [22, -14], [12, -10], [-10, -9], [-18, -18], [-24, -8], [-40, -5], [-50, -14],
+           [-46, 0], [-50, 10], [-38, 4], [-10, 8], [0, 16], [8, 8], [30, 7], [44, 5]],
   swimmer: [[50, 0], [46, -5], [40, -6], [36, -3], [30, -3], [10, -4], [-20, -3], [-50, -2], [-50, 2], [-20, 4],
             [10, 5], [30, 4], [36, 4], [40, 6], [46, 5]],
 });
@@ -35,6 +42,15 @@ class Fauna extends Creature {
 
   update(dt, game) {
     const d = this.def, w = game.whale, t = game.time;
+    if (this.orbit) { // the gathering at the trench floor: circle the whale on a ring, facing along it
+      const o = this.orbit, A = CONFIG.ascension;
+      o.a += A.ringSpeed * o.dir * dt; o.r = Math.max(o.r - 30 * dt, o.r0 * 0.6);
+      const tx = w.x + Math.cos(o.a) * o.r, ty = w.y + Math.sin(o.a) * o.r * 0.6;
+      this.x += (tx - this.x) * Math.min(1, dt * 0.8); this.y += (ty - this.y) * Math.min(1, dt * 0.8);
+      this.angle = o.a + o.dir * Math.PI / 2;
+      this.updatePoly();
+      return;
+    }
     if (d.bottom) { // crawl along the seabed, stop and go
       this.pauseT -= dt;
       if (this.pauseT <= 0) { this.pauseT = rand(1, 4); if (Math.random() < 0.3) this.dir *= -1; this.crawl = Math.random() < 0.6; }
@@ -249,7 +265,7 @@ function drawGlows(ctx, game, x0, x1, y0, y1, px) {
   for (const f of game.fauna) {
     const G = f.def.glow;
     if (!G || f.x < x0 - 200 || f.x > x1 + 200 || f.y < y0 - 200 || f.y > y1 + 200) continue;
-    const dark = 1 - lightAt(f.y);
+    const dark = Math.max(1 - lightAt(f.y), f.orbit ? 1 : 0);
     if (dark < 0.5) continue;
     const pulse = 0.55 + 0.45 * Math.sin(t * (G.speed || 2) + f.phase);
     const pts = transformShape(G.pts, f.x, f.y, f.angle, f.scale);
@@ -258,6 +274,16 @@ function drawGlows(ctx, game, x0, x1, y0, y1, px) {
     for (const p of pts) {
       glowDot(ctx, p[0], p[1], r, G.c, pulse * dark * 0.7);
       glowDot(ctx, p[0], p[1], Math.max(r * 0.2, 2.5 * px), [230, 250, 255], pulse * dark);
+    }
+  }
+  for (const p of game.prey) { // glowing food-chain species (the cosmic ones)
+    const G = p.sp.glow;
+    if (!G || p.x < x0 - 300 || p.x > x1 + 300 || p.y < y0 - 300 || p.y > y1 + 300) continue;
+    const pulse = 0.6 + 0.4 * Math.sin(t * (G.speed || 2) + p.x * 0.01);
+    const r = Math.max(G.r * Math.max(0.6, p.scale) * 2.5, 12 * px);
+    for (const q of transformShape(G.pts, p.x, p.y, p.angle, p.scale)) {
+      glowDot(ctx, q[0], q[1], r, G.c, pulse * 0.6);
+      glowDot(ctx, q[0], q[1], Math.max(r * 0.2, 2.5 * px), [240, 250, 255], pulse * 0.9);
     }
   }
   for (const d of game.world.decor) {

@@ -36,7 +36,7 @@ class Quests {
 
   make() {
     const g = this.game, w = g.whale, Q = CONFIG.quests;
-    const species = CONFIG.species.filter(sp => !sp.final && w.tierGap(sp) >= -2 && w.tierGap(sp) <= 2);
+    const species = g.realmSpecies().filter(sp => !sp.final && w.tierGap(sp) >= -2 && w.tierGap(sp) <= 2);
     const used = new Set(this.list.map(q => q.type + ':' + (q.sp ? q.sp.id : q.tier || '')));
     const options = [];
     for (const sp of species) {
@@ -53,13 +53,13 @@ class Quests {
       if ((w.scans[sp.id] || 0) >= CONFIG.sonar.model.scansForFull || used.has('learn:' + sp.id)) continue;
       options.push({ type: 'learn', sp, need: CONFIG.sonar.model.scansForFull, text: `Fully scan a ${sp.name} with sonar` });
     }
-    if (!used.has('dive:')) {
+    if (!g.cosmic && !used.has('dive:')) {
       const m = Math.round(Math.min(w.stats.maxDepth * 0.9, Math.max(300, this.maxDepthM + 250)) / 50) * 50;
       options.push({ type: 'dive', need: m, text: `Dive to ${m} m` });
     }
     if (!used.has('travel:')) { const km = randInt(Q.travelKm[0], Q.travelKm[1]); options.push({ type: 'travel', need: km * 1000, text: `Swim ${km} km` }); }
     if (!used.has('struggle:') && species.some(sp => w.tierGap(sp) > 0)) options.push({ type: 'struggle', need: 1, text: 'Win a fight against a bigger animal' });
-    if (!used.has('breach:')) options.push({ type: 'breach', need: 1, text: 'Breach: leap fully out of the water' });
+    if (!g.cosmic && !used.has('breach:')) options.push({ type: 'breach', need: 1, text: 'Breach: leap fully out of the water' });
     if (!options.length) return null;
 
     // prefer eating quests (the core loop)
@@ -136,6 +136,9 @@ function drawQuests(ctx, game) {
                : q.type === 'dive' ? `${q.have}/${q.need} m`
                : q.type === 'learn' ? `${Math.round(100 * frac)}%` : `${q.have}/${q.need}`;
     hudFont(ctx, 11, true); ctx.fillStyle = HUD.label; ctx.fillText(prog, x + 98, y + 15);
-    hudFont(ctx, 11, true); ctx.fillStyle = HUD.cyan; ctx.fillText(`→ ${q.reward.text}`, x, y + 31);
+    hudFont(ctx, 11, true); ctx.fillStyle = HUD.cyan;
+    let rt = `→ ${q.reward.text}`; // shorten long rewards so they stay inside the panel
+    while (rt.length > 4 && ctx.measureText(rt).width > pw) rt = rt.slice(0, -2) + '…';
+    ctx.fillText(rt, x, y + 31);
   });
 }

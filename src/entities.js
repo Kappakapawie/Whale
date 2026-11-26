@@ -98,7 +98,12 @@ class Whale {
     if (ns !== this.size) { this.size = ns; this.recomputeStats(); this.updatePoly(); }
   }
   topSpecies() { let top = CONFIG.species[0]; for (const s of CONFIG.species) if (this.diet.has(s.id)) top = s; return top; }
-  nextSpecies() { return CONFIG.species[CONFIG.species.indexOf(this.topSpecies()) + 1] || null; }
+  // The next species in the CURRENT realm (the ocean chain ends at the giant squid; the cosmic chain starts after
+  // the ascension, see Game.enterCosmic).
+  nextSpecies() {
+    const n = CONFIG.species[CONFIG.species.indexOf(this.topSpecies()) + 1];
+    return n && !!n.cosmic === !!this.cosmic ? n : null;
+  }
   isSquid(sp) { return sp.shape === 'squid' || sp.shape === 'giantSquid'; }
 
   // Diet grows by itself: eat diet.unlockAfter of your top species and the next one is added.
@@ -144,11 +149,11 @@ class Whale {
     this.timeAlive += dt;
     const ix = (input.right ? 1 : 0) - (input.left ? 1 : 0);
     const iy = (input.down ? 1 : 0) - (input.up ? 1 : 0);
-    const inWater = this.y > 0;
+    const inWater = this.y > 0 || this.cosmic; // in space there is no surface and no gravity
     const moving = ix !== 0 || iy !== 0;
     this.sprinting = input.sprint && moving && inWater && this.energy > s.maxEnergy * s.sprintMinEnergy;
     // At the surface (breathing) the whale is slow and heavy: coming up for air is a risk.
-    const atSurface = inWater && this.y < s.breathDepth * 1.6;
+    const atSurface = !this.cosmic && inWater && this.y < s.breathDepth * 1.6;
     const mult = (this.sprinting ? s.sprintMultiplier : 1) * (atSurface ? s.surfaceSpeedMult : 1);
     this.atSurface = atSurface;
 
@@ -185,8 +190,11 @@ class Whale {
     this.lastAngle = this.angle;
     this.bend = lerp(this.bend || 0, clamp(turn, -2, 2), Math.min(1, dt * 4));
 
-    // Breathing
-    if (this.y < s.breathDepth) {
+    // Breathing (in the cosmic realm the whale is godly: no air needed, no pressure)
+    if (this.cosmic) {
+      this.oxygen = s.maxOxygen; this.underwater = true;
+      if (this.y < CONFIG.cosmic.ceiling) this.vy += (CONFIG.cosmic.ceiling - this.y) * 2 * dt; // soft ceiling
+    } else if (this.y < s.breathDepth) {
       if (this.underwater && this.oxygen < s.maxOxygen * 0.95) game.spout(this);
       this.underwater = false;
       this.oxygen = Math.min(s.maxOxygen, this.oxygen + s.oxygenRefill * this.size * dt);
@@ -197,7 +205,7 @@ class Whale {
     this.energy -= (this.sprinting ? s.sprintEnergyDrain : s.energyDrain) * dt;
 
     const depthM = this.y * CONFIG.metersPerUnit;
-    this.overDepth = depthM > s.maxDepth;
+    this.overDepth = !this.cosmic && depthM > s.maxDepth;
     if (this.overDepth) this.damage(s.pressureDamage * (1 + (depthM - s.maxDepth) / 200) * dt, 'Crushed by the pressure of the deep.', game, true);
     if (this.oxygen <= 0) { this.oxygen = 0; this.damage(s.suffocateDamage * dt, 'You drowned.', game, true); }
     if (this.energy <= 0) { this.energy = 0; this.damage(s.starveDamage * dt, 'You starved.', game, true); }

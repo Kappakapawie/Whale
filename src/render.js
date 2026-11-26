@@ -22,6 +22,9 @@ function buildGradients(ctx) {
     g.dark.addColorStop(f, `rgba(0,3,10,${a.toFixed(3)})`);
   }
 
+  g.cosmicRock = ctx.createLinearGradient(0, 4000, 0, D + 800);
+  g.cosmicRock.addColorStop(0, '#2a1f4a'); g.cosmicRock.addColorStop(0.4, '#171230'); g.cosmicRock.addColorStop(1, '#08060f');
+
   g.ray = ctx.createLinearGradient(0, 0, 0, 700);
   g.ray.addColorStop(0, 'rgba(255,255,230,0.14)'); g.ray.addColorStop(1, 'rgba(255,255,230,0)');
   return g;
@@ -38,9 +41,12 @@ function drawGame(game) {
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
   ctx.setTransform(z, 0, 0, z, -cx * z, -cy * z);
 
-  // --- Sky and water
+  // --- Sky and water (or, after the ascension, outer space)
+  const wy = game.cosmic ? y0 : Math.max(0, y0);
+  if (game.cosmic) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0); drawCosmos(ctx, game, W, H, t); ctx.setTransform(z, 0, 0, z, -cx * z, -cy * z);
+  } else {
   if (y0 < 0) { ctx.fillStyle = game.grad.sky; ctx.fillRect(x0, y0, VW, -y0); drawCoastLand(ctx, x0, x1, t, game.world); }
-  const wy = Math.max(0, y0);
   ctx.fillStyle = game.grad.water; ctx.fillRect(x0, wy, VW, y1 - wy);
 
   // --- God rays near the surface
@@ -56,9 +62,10 @@ function drawGame(game) {
   }
 
   drawWaterShading(ctx, game, x0, x1, y0, y1, px, t);
+  }
 
-  // --- Terrain
-  ctx.fillStyle = game.grad.terrain;
+  // --- Terrain (cosmic rock in space)
+  ctx.fillStyle = game.cosmic ? game.grad.cosmicRock : game.grad.terrain;
   for (const s of game.world.solids) {
     if (!inView(s)) continue;
     tracePoly(ctx, s.poly); ctx.fill();
@@ -102,7 +109,7 @@ function drawGame(game) {
   drawGore(ctx, game, px);
 
   // Marine snow: slow sinking specks, lit only where there is light (the darkness covers them deeper down)
-  const sn = 110;
+  const sn = game.cosmic ? 1e9 : 110;
   ctx.fillStyle = 'rgba(225,240,250,0.35)';
   for (let gx = Math.floor(x0 / sn); gx <= Math.ceil(x1 / sn); gx++) {
     for (let gy = Math.max(0, Math.floor(y0 / sn) - 1); gy <= Math.ceil(y1 / sn); gy++) {
@@ -115,17 +122,18 @@ function drawGame(game) {
   }
 
   // ================= DARKNESS =================
-  ctx.fillStyle = game.grad.dark; ctx.fillRect(x0, wy, VW, y1 - wy);
+  if (game.cosmic) { ctx.fillStyle = `rgba(2,0,12,${CONFIG.cosmic.darkness})`; ctx.fillRect(x0, y0, VW, VH); }
+  else { ctx.fillStyle = game.grad.dark; ctx.fillRect(x0, wy, VW, y1 - wy); }
 
   // Faint self-outline so the player can find themself in the dark
-  const selfA = 0.5 * (1 - lightAt(w.y));
+  const selfA = game.cosmic ? 0.3 : 0.5 * (1 - lightAt(w.y));
   if (selfA > 0.02 && !blink) {
     ctx.strokeStyle = `rgba(150,180,210,${selfA})`;
     drawWhaleModel(ctx, w, 'outline', px);
   }
 
   // Surface line
-  if (y0 < 30) {
+  if (y0 < 30 && !game.cosmic) {
     ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2 * px; ctx.beginPath();
     const sx0 = Math.floor(x0 / 20) * 20;
     for (let x = sx0; x <= x1 + 20; x += 20) {
@@ -173,6 +181,14 @@ function drawGame(game) {
   const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
   vg.addColorStop(0, 'rgba(0,4,10,0)'); vg.addColorStop(1, 'rgba(0,4,10,0.45)');
   ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+  // the ascension: a violet glow builds while the mythical creatures gather, then a white flash into space
+  if (game.ascend) {
+    const a = 0.3 * clamp(game.ascend.t / CONFIG.ascension.gatherTime, 0, 1);
+    const ag = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7);
+    ag.addColorStop(0, `rgba(190,160,255,${(a * 0.5).toFixed(3)})`); ag.addColorStop(1, `rgba(90,50,180,${a.toFixed(3)})`);
+    ctx.fillStyle = ag; ctx.fillRect(0, 0, W, H);
+  }
+  if (game.ascendFx > 0) { ctx.fillStyle = `rgba(245,240,255,${game.ascendFx.toFixed(3)})`; ctx.fillRect(0, 0, W, H); }
   if (game.flash > 0) { // taking damage: a faint red tint at the screen edges only, the centre stays clear
     const D = CONFIG.damageFx, hg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * D.inner, W / 2, H / 2, Math.max(W, H) * 0.72);
     hg.addColorStop(0, 'rgba(150,20,25,0)'); hg.addColorStop(1, `rgba(150,20,25,${(game.flash * D.alpha).toFixed(3)})`);
@@ -180,6 +196,71 @@ function drawGame(game) {
   }
   drawHUD(ctx, game);
   updateCursor(game);
+}
+
+// ---------------------------------------------------------------- outer space (the cosmic realm)
+// Screen-space backdrop in parallax layers: nebulae, far stars, spiral galaxies, planets and near stars, each
+// layer drifting at its own fraction of the camera's movement, so swimming feels like moving through space.
+const COSMOS_COLORS = [[120, 60, 200], [40, 140, 210], [200, 60, 150], [60, 200, 170], [230, 140, 70]];
+function cosmosLayer(game, W, H, par, cell, fn) {
+  const z = game.cam.z, ox = game.cam.x * z * par, oy = game.cam.y * z * par;
+  for (let gx = Math.floor(ox / cell) - 1; gx <= Math.floor((ox + W) / cell) + 1; gx++) {
+    for (let gy = Math.floor(oy / cell) - 1; gy <= Math.floor((oy + H) / cell) + 1; gy++) {
+      const h = hash(gx * 7 + Math.round(par * 100), gy * 13 - 5);
+      fn(gx * cell - ox + hash(gy, gx) * cell, gy * cell - oy + hash(gx + 2, gy - 9) * cell, h, gx, gy);
+    }
+  }
+}
+function drawCosmos(ctx, game, W, H, t) {
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#0a0620'); bg.addColorStop(1, '#03020c');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  cosmosLayer(game, W, H, 0.04, 650, (x, y, h) => { // nebulae
+    if (h > 0.6) return;
+    const c = COSMOS_COLORS[Math.floor(h * 97) % COSMOS_COLORS.length], r = 350 + h * 700;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(${c[0]},${c[1]},${c[2]},0.2)`); g.addColorStop(1, `rgba(${c[0]},${c[1]},${c[2]},0)`);
+    ctx.fillStyle = g; ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
+  });
+  cosmosLayer(game, W, H, 0.07, 46, (x, y, h) => { // far stars
+    if (h > 0.6) return;
+    const a = 0.35 + 0.35 * Math.sin(t * (0.5 + h * 3) + h * 90);
+    ctx.fillStyle = `rgba(220,230,255,${a.toFixed(3)})`; ctx.fillRect(x, y, 1 + (h > 0.5 ? 1 : 0), 1 + (h > 0.5 ? 1 : 0));
+  });
+  cosmosLayer(game, W, H, 0.11, 620, (x, y, h) => { // spiral galaxies
+    if (h > 0.4) return;
+    const c = COSMOS_COLORS[Math.floor(h * 311) % COSMOS_COLORS.length], sc = 0.7 + h * 3.5;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(h * 20); ctx.scale(sc, sc * 0.45);
+    const core = ctx.createRadialGradient(0, 0, 0, 0, 0, 60);
+    core.addColorStop(0, 'rgba(255,245,230,0.5)'); core.addColorStop(1, `rgba(${c[0]},${c[1]},${c[2]},0)`);
+    ctx.fillStyle = core; ctx.beginPath(); ctx.arc(0, 0, 60, 0, TAU); ctx.fill();
+    for (let arm = 0; arm < 2; arm++) for (let k = 0; k < 110; k++) {
+      const a = k * 0.075 + arm * Math.PI + t * 0.01, r = 6 + k * 1.15;
+      ctx.fillStyle = `rgba(${c[0] + 60},${c[1] + 60},${c[2] + 60},${(0.28 * (1 - k / 110)).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(Math.cos(a) * r, Math.sin(a) * r, 4.5 - k * 0.03, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+  });
+  ctx.restore();
+  cosmosLayer(game, W, H, 0.18, 700, (x, y, h, gx, gy) => { // planets
+    if (h > 0.28) return;
+    const r = 25 + h * 600, c = COSMOS_COLORS[(gx * 3 + gy * 5 + 99) % COSMOS_COLORS.length];
+    const g = ctx.createRadialGradient(x - r * 0.4, y - r * 0.4, r * 0.1, x, y, r);
+    g.addColorStop(0, `rgb(${Math.min(255, c[0] + 90)},${Math.min(255, c[1] + 90)},${Math.min(255, c[2] + 90)})`);
+    g.addColorStop(0.7, `rgb(${c[0] * 0.55 | 0},${c[1] * 0.55 | 0},${c[2] * 0.55 | 0})`); g.addColorStop(1, 'rgb(8,6,18)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+    if (hash(gx, gy + 77) > 0.5) { // rings
+      ctx.strokeStyle = `rgba(${c[0] + 80},${c[1] + 80},${c[2] + 80},0.45)`; ctx.lineWidth = Math.max(2, r * 0.07);
+      ctx.beginPath(); ctx.ellipse(x, y, r * 1.8, r * 0.45, -0.3, 0, TAU); ctx.stroke();
+    }
+  });
+  cosmosLayer(game, W, H, 0.3, 150, (x, y, h) => { // near stars, a few with a flare
+    if (h > 0.35) return;
+    const a = 0.6 + 0.4 * Math.sin(t * (1 + h * 4) + h * 40);
+    ctx.fillStyle = `rgba(255,250,240,${a.toFixed(3)})`; ctx.beginPath(); ctx.arc(x, y, 1 + h * 3, 0, TAU); ctx.fill();
+    if (h < 0.05) { ctx.fillRect(x - 8, y - 0.5, 16, 1); ctx.fillRect(x - 0.5, y - 8, 1, 16); }
+  });
 }
 
 // ---------------------------------------------------------------- gore (a kill: blood clouds + flesh chunks)
@@ -592,6 +673,7 @@ function drawHUD(ctx, game) {
     // --- right edge: depth thread (0 m at the top) with your dive limit, big depth readout above the quests
     const depthM = Math.max(0, w.y * CONFIG.metersPerUnit), TX = W - 30, T0 = 28, T1 = H - 40;
     const scaleM = Math.max(3000, s.maxDepth * 1.1), ty = m => T0 + (T1 - T0) * clamp(m / scaleM, 0, 1);
+    if (!game.cosmic) { // no depth in space
     const tg = ctx.createLinearGradient(0, T0, 0, T1);
     tg.addColorStop(0, 'rgba(127,227,240,0.55)'); tg.addColorStop(1, 'rgba(127,227,240,0.12)');
     ctx.fillStyle = tg; ctx.fillRect(TX - 1, T0, 2, T1 - T0);
@@ -600,15 +682,16 @@ function drawHUD(ctx, game) {
     const markY = ty(depthM);
     ctx.save(); ctx.shadowColor = w.overDepth ? HUD.warn : HUD.cyan; ctx.shadowBlur = 14;
     ctx.fillStyle = w.overDepth ? HUD.warn : HUD.cyan; ctx.beginPath(); ctx.arc(TX, markY, 6, 0, TAU); ctx.fill(); ctx.restore();
+    }
 
     ctx.textAlign = 'right';
     hudFont(ctx, 36, true, true); ctx.fillStyle = w.overDepth && blinkOn ? HUD.warn : HUD.ink;
-    const dTxt = `${Math.round(depthM)}`; ctx.fillText(dTxt, W - 72, 40);
-    ctx.textAlign = 'left'; hudFont(ctx, 15, true); ctx.fillStyle = HUD.label; ctx.fillText('m', W - 68, 46);
+    const dTxt = game.cosmic ? '∞' : `${Math.round(depthM)}`; ctx.fillText(dTxt, W - 72, 40);
+    ctx.textAlign = 'left'; hudFont(ctx, 15, true); ctx.fillStyle = HUD.label; if (!game.cosmic) ctx.fillText('m', W - 68, 46);
     ctx.textAlign = 'right';
     if ('letterSpacing' in ctx) ctx.letterSpacing = '1.5px';
     hudFont(ctx, 11, true); ctx.fillStyle = w.overDepth ? HUD.warn : HUD.label;
-    ctx.fillText(`LIMIT ${Math.round(s.maxDepth)} M`, W - 54, 68);
+    ctx.fillText(game.cosmic ? 'BEYOND THE DEEP' : `LIMIT ${Math.round(s.maxDepth)} M`, W - 54, 68);
     if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
     ctx.textAlign = 'left';
 
@@ -701,8 +784,14 @@ function drawHUD(ctx, game) {
     '',
     'Press R or click to try again',
   ]);
+  else if (game.state === 'won' && game.wonSpecies && game.wonSpecies.cosmic) overlay(ctx, W, H, 'You devoured the stars', [
+    'You ate the Star Serpent. There is nothing left above you, below you or beyond you.',
+    `Score ${w.score}   ·   Eaten ${w.eaten}   ·   Time ${Math.floor(w.timeAlive)}s`,
+    '',
+    'C — keep swimming      R — new game',
+  ]);
   else if (game.state === 'won') overlay(ctx, W, H, 'You are the Leviathan', [
-    'You ate the Giant Squid. Nothing in the deep can challenge you now.',
+    'You ate the Giant Squid. Nothing in the deep can challenge you now. Somewhere, a trench goes deeper still...',
     `Score ${w.score}   ·   Eaten ${w.eaten}   ·   Time ${Math.floor(w.timeAlive)}s`,
     '',
     'C — keep swimming      R — new game',
