@@ -232,6 +232,9 @@ then open http://localhost:8123 (the `deep-echo` entry in `.claude/launch.json` 
 - Keep changes small and playable; after a change, run the game in the browser and check the console for errors.
 - When adding a feature, put its numbers in `config.js` and update this file's file map / gameplay section.
 - Respect the hard design rules above; if a request conflicts with them, point it out and ask.
-- **Every answer that changes the game must end with a play button**: a ▶ link to http://localhost:8123 (the
+- **Every answer that changes the game must end with a direct launcher**: in cloud sessions, republish the
+  "Deep Echo" artifact (https://claude.ai/artifact/QKE6aFZHAj1dFnr6GvJPyf: a page with the canvas + the `src/*.js`
+  scripts in `index.html` order, published with `files`) and end with a ▶ link to it. Also give the local play button:
+  a ▶ link to http://localhost:8123 (the
   `deep-echo` server in `.claude/launch.json`; start it with the preview tool first) plus a one-line
   `powershell` block `Start-Process "http://localhost:8123"`, which the app shows with a Run button.
