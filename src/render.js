@@ -39,7 +39,7 @@ function drawGame(game) {
   ctx.setTransform(z, 0, 0, z, -cx * z, -cy * z);
 
   // --- Sky and water
-  if (y0 < 0) { ctx.fillStyle = game.grad.sky; ctx.fillRect(x0, y0, VW, -y0); drawCoastLand(ctx, x0, x1, t); }
+  if (y0 < 0) { ctx.fillStyle = game.grad.sky; ctx.fillRect(x0, y0, VW, -y0); drawCoastLand(ctx, x0, x1, t, game.world); }
   const wy = Math.max(0, y0);
   ctx.fillStyle = game.grad.water; ctx.fillRect(x0, wy, VW, y1 - wy);
 

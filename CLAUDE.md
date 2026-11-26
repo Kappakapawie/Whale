@@ -54,11 +54,18 @@ echoes are the only way to see.
 - **Never get stuck on terrain.** Collision pushes bodies out of terrain (`World.resolveCircle`) and removes only
   the velocity going into the surface, so things slide along walls. Never "revert to previous position".
 - **The world is endless horizontally.** There are no map edges and nothing may clamp x. Terrain is generated in
-  seeded chunks around the whale (`World.ensureAround`), and the floor height is a pure function of x
-  (`World.floorRaw`), so a chunk can be dropped and rebuilt identically. Rocks sit on the deepest floor point under
+  seeded chunks around the whale (`World.ensureAround`). Rocks sit on the deepest floor point under
   them so no thin gaps form. Creatures, pods and ships are kept at a steady number near the whale by
-  `Game.managePopulation`, spawn out of sight, and are removed past `despawnRadius`. The area around x = 0 is
-  always shallow shelf (the start).
+  `Game.managePopulation`, spawn out of sight, and are removed past `despawnRadius`.
+- **The map is stitched from segments** (`CONFIG.segments`, `World.extend`/`segProfile`/`floorRaw`): beach
+  (~80-100 m plateau, beach on the horizon, swimmers), shelf (~150-250 m), open sea (~600-1500 m, ridges) and deep
+  sea (~2200-2600 m, pillars, kraken). The map doesn't have to make geographic sense. Each new segment is rolled
+  with weights that slide with `Game.progress()` (average of size and upgrade-level progress): a new whale finds
+  mostly shelf/open sea and a developed whale mostly open/deep sea; beaches are rare. Segments are decided once
+  (`lookahead` beyond the loaded area) and then remembered, so the floor at x never changes afterwards and chunks
+  rebuild identically. Code that probes far away (e.g. the kraken spawn) must use `World.isGenerated` so it
+  doesn't lock in segments early. Between segments the seabed slopes inside the deeper one (flat tops stay flat).
+  The start (x = 0) is always a small shelf with open sea right next to it on both sides.
 - **Open water.** The ocean is mostly deep (`abyssDepth` 6500, ~70% deeper than 2000 m) with few rocks and rare,
   tall pillars. Keep it open; don't add clutter without asking.
 - **Growth drives everything — bigger means slower, heavier and more zoomed out.** `whale.size` goes from 1 to
@@ -98,12 +105,12 @@ echoes are the only way to see.
   `graceTime` (10 s, 4 s when hungry), favouring the top tiers of the diet. A swimming bot survived 8 minutes with
   meals ~2 s apart (longest gap 41 s) - re-run that kind of check after touching energy/spawn numbers.
 - **Growth is slow** (`growth.massForMax` 6000): roughly size 1.4 after 8 minutes, ~2.9 by the giant squid.
-- **Coasts, swimmers and the WANTED level** (`src/fauna.js`, `CONFIG.coast/swimmers/wanted`). Coasts are shallow
-  plateaus (~36 m) with a beach on the horizon; the first is ~4200 units left of the start. Human swimmers there
+- **Coasts, swimmers and the WANTED level** (`src/fauna.js`, `CONFIG.swimmers/wanted`). Coasts are the beach
+  segments (`World.coastNear`/`beachesIn`): shallow plateaus (~80-100 m) with a beach on the horizon. Human swimmers there
   are edible, but each one adds a GTA-style wanted star (max 5): +2 ships per star, higher whaler heat, and from
   3 stars they track you even underwater. A star always drops every `decayTime` s (eating another swimmer resets
   the timer; a bar under the stars shows it); swimmers stay out of the water while you are wanted. Beaches are
-  short (`coast.halfWidth` 700).
+  short (`segments.types.beach.width`).
 - **Ambient life (not food)** (`CONFIG.fauna`, `Fauna` class): blue whales and humpbacks (rare giants), dolphin
   pods, turtles, coastal seals, and glowing deep-sea life (anglerfish lures, firefly/vampire squid, comb jellies,
   lanternfish schools), plus seabed crabs. Glow is drawn AFTER the darkness (`drawGlows`), so glowing animals are
@@ -140,8 +147,8 @@ echoes are the only way to see.
   so small prey becomes a snack that barely registers. Prey you've outgrown also gives less growth and score
   (`Whale.nutrition`: falls over `nutritionFalloff` size units to `minNutrition`). The food chain panel shows
   "worth N%". This pushes the player to always hunt the biggest thing they can eat.
-- **Open water is close to the start.** The shallow start shelf is small (`startShelfHalfWidth`); deep water is
-  ~5–15 s away.
+- **Open water is close to the start.** The shallow start shelf is small (`segments.start.halfWidth`) and its
+  neighbours are always open sea, so deeper water is ~5–15 s away.
 - **Everything must be escapable or catchable.** Attackers chase at `attack.chaseSpeed`, which stays below the
   whale's normal swim speed at every size, and give up after `chaseTime`. Prey flee speeds stay below the whale's
   sprint at the size where they unlock. Check both when tuning speeds.
@@ -189,7 +196,7 @@ then open http://localhost:8123 (the `deep-echo` entry in `.claude/launch.json` 
 | `index.html` | Canvas + script load order |
 | `src/config.js` | Every tunable value (world, growth, whale stats, upgrades, sonar, species, orcas, ships) |
 | `src/util.js` | Math helpers, `lightAt(y)`, ray/segment intersection, polygons, solids |
-| `src/world.js` | Endless chunked seabed (shelves, abysses, ridges), rocks, pillars, collision |
+| `src/world.js` | Endless seabed from progress-weighted segments (beach/shelf/open/deep), chunks, rocks, pillars, collision |
 | `src/sonar.js` | Click emission, ray casting, face extraction, echo lifetime |
 | `src/fauna.js` | Ambient fauna, coast swimmers, coasts + beach scenery, seabed decorations, glow pass |
 | `src/quests.js` | Quest generation, tracking, rewards, quest panel |

@@ -8,11 +8,27 @@ const CONFIG = {
     depth: 7500, skyHeight: 500,
     chunkWidth: 1600,
     activeRadius: 4500, despawnRadius: 5500,
-    shelfDepth: 520, abyssDepth: 6500,
-    // Open water: shallow shelves are rare, rocks are few and pillars are uncommon.
-    abyssBias: 0.15,        // lower = more deep open ocean (0..1)
+    shelfDepth: 520, abyssDepth: 6500,   // used to scale roughness/ridges between shallow and deep segments
+    // Open water: rocks are few and pillars are uncommon (deep sea segments only).
     rocksPerChunk: [1, 4], pillarChance: 0.2, ridgeHeight: 2600,
-    startShelfHalfWidth: 500, startShelfFalloff: 600, // small shallow start; deep open water is close by
+  },
+
+  // The map is stitched from segments (world.js). Each new segment is rolled with weights that slide from
+  // weight[0] (new whale) to weight[1] (fully grown + upgraded: the average of size and upgrade-level progress).
+  // width / depth in world units (1 unit = 0.4 m; the whale swims ~75-130 units/s). Between neighbours the seabed
+  // slopes inside the deeper segment, over max(ramp, depth difference x rampPerDepth), at most maxRampShare of
+  // that segment's width. The start is always a small shelf with open sea right next to it on both sides.
+  // `lookahead`: segments are decided this far beyond the loaded area. Beaches are rare (fewer than the old
+  // one-per-28000 coasts even for a new whale).
+  segments: {
+    types: {
+      beach: { weight: [0.07, 0.015], width: [1600, 2400], depth: [200, 250] }, // ~80-100 m, beach on the horizon
+      shelf: { weight: [0.40, 0.07], width: [2000, 5000], depth: [375, 625] },   // ~150-250 m
+      open:  { weight: [0.35, 0.40], width: [2500, 6000], depth: [1500, 3750] }, // ~600-1500 m
+      deep:  { weight: [0.10, 0.50], width: [3500, 8000], depth: [5500, 6500] }, // ~2200-2600 m
+    },
+    start: { type: 'shelf', halfWidth: 900, neighbour: 'open' },
+    ramp: 700, rampPerDepth: 0.6, maxRampShare: 0.45, lookahead: 8000,
   },
   population: { pods: 2, ships: 1, checkInterval: 1, groupSpread: 130 }, // groupSpread: how loose schools are
   // Free swimmers keep this much water between themselves and terrain (nearFloor species are exempt).
@@ -244,9 +260,7 @@ const CONFIG = {
     completeAt: 0.8, rewardPoints: 2, // arm roots hide behind other arms, so 100% is not reachable
   },
 
-  // Coasts: shallow plateaus (~36 m deep) with a beach on the horizon and human swimmers. The first is just left
-  // of the start; then one every `spacing` units (+- jitter) along the endless ocean.
-  coast: { firstAt: -2600, spacing: 28000, jitter: 4000, halfWidth: 700, ramp: 700, depth: 90 }, // short beaches
+  // Coasts are the 'beach' segments (CONFIG.segments): shallow plateaus with a beach on the horizon.
   // Human swimmers at coasts. Edible - but every one you eat raises your WANTED level.
   swimmers: { count: 5, depthMin: 6, depthMax: 20, speed: 12, fleeSpeed: 30, energy: 12, score: 5, length: 68, hideAtWanted: 2 },
   // GTA-style wanted level: each eaten swimmer adds a star (max 5). Each star brings shipsPerStar extra whaling

@@ -103,10 +103,10 @@ class Carcass extends Creature {
 
 // ---------------------------------------------------------------- human swimmers (coasts only)
 class Swimmer extends Creature {
-  constructor(x, y, coastX) {
+  constructor(x, y, coastX, halfW) {
     const c = CONFIG.swimmers;
     super('human', 'swimmer', x, y, c.length / 100);
-    this.length = c.length; this.coastX = coastX; this.radius = c.length * 0.3;
+    this.length = c.length; this.coastX = coastX; this.halfW = halfW; this.radius = c.length * 0.3;
     this.dir = Math.random() < 0.5 ? -1 : 1; this.t = rand(0, 10); this.baseY = y;
   }
   update(dt, game) {
@@ -114,7 +114,7 @@ class Swimmer extends Creature {
     this.t += dt;
     const near = w.alive && dist(this.x, this.y, w.x, w.y) < 250 + 200 * w.size;
     if (near) this.dir = this.x > w.x ? 1 : -1; // swim away from the whale, as fast as they can
-    else if (Math.abs(this.x - this.coastX) > CONFIG.coast.halfWidth * 0.8) this.dir = this.x > this.coastX ? -1 : 1;
+    else if (Math.abs(this.x - this.coastX) > this.halfW * 0.7) this.dir = this.x > this.coastX ? -1 : 1;
     else if (Math.random() < dt * 0.05) this.dir *= -1;
     this.vx = this.dir * (near ? c.fleeSpeed : c.speed); this.vy = 0;
     this.x += this.vx * dt; this.y = this.baseY + Math.sin(this.t * 2) * 2;
@@ -124,24 +124,12 @@ class Swimmer extends Creature {
 }
 
 // ---------------------------------------------------------------- coasts
-// Coasts are shallow plateaus spaced along the endless ocean (the first one just left of the start).
-function coastCenter(k) { const C = CONFIG.coast; return C.firstAt + k * C.spacing + (k === 0 ? 0 : (hash(k, 11) - 0.5) * 2 * C.jitter); }
-function coastNear(x) {
-  const C = CONFIG.coast, k0 = Math.round((x - C.firstAt) / C.spacing);
-  let best = null;
-  for (let k = k0 - 1; k <= k0 + 1; k++) {
-    const cx = coastCenter(k), d = Math.abs(x - cx);
-    const c = 1 - clamp((d - C.halfWidth) / C.ramp, 0, 1);
-    if (!best || c > best.c) best = { cx, c: c * c * (3 - 2 * c) };
-  }
-  return best;
-}
+// Coasts are the beach segments of the world (World.coastNear / beachesIn).
 
 // Land on the horizon above a coast: beach, dunes, palms and parasols.
-function drawCoastLand(ctx, x0, x1, t) {
-  const C = CONFIG.coast, k0 = Math.round((x0 - C.firstAt) / C.spacing);
-  for (let k = k0 - 1; k <= k0 + 2; k++) {
-    const cx = coastCenter(k), L = cx - C.halfWidth - C.ramp * 0.3, R = cx + C.halfWidth + C.ramp * 0.3;
+function drawCoastLand(ctx, x0, x1, t, world) {
+  for (const b of world.beachesIn(x0 - 400, x1 + 400)) {
+    const L = b.cx - b.half + 150, R = b.cx + b.half - 150;
     if (R < x0 || L > x1) continue;
     ctx.fillStyle = '#7a9a6a';
     ctx.beginPath(); ctx.moveTo(L, 0);

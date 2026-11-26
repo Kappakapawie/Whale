@@ -1,9 +1,17 @@
-// Endless seabed, generated in chunks around the whale.
-// The floor height is a pure function of x (seeded), so chunks can be thrown away and rebuilt identically.
+// Endless seabed, stitched together from SEGMENTS (beach, shelf, open sea, deep sea - CONFIG.segments).
+// Segments are added outward from the start as the whale gets near them; each new one is rolled with weights that
+// depend on the whale's progress (progressFn: 0 = new whale, 1 = fully grown + upgraded), so a developed whale
+// mostly finds open and deep sea. Once made, a segment is remembered, so the floor at x never changes after that:
+// chunks can be thrown away and rebuilt identically. Neighbouring segments blend over a smooth slope.
 // Rocks and pillars come from a per-chunk seeded RNG, so they're the same every time a chunk is rebuilt.
 class World {
-  constructor(seed = Math.floor(Math.random() * 1e9)) {
+  constructor(seed = Math.floor(Math.random() * 1e9), progressFn = () => 0) {
     this.seed = seed;
+    this.progressFn = progressFn;
+    const S = CONFIG.segments;
+    this.segRng = { L: mulberry32((seed ^ 0x51ED27) >>> 0), R: mulberry32((seed ^ 0xA11CE5) >>> 0) };
+    this.segCount = { L: 0, R: 0 };
+    this.segs = [{ type: S.start.type, x0: -S.start.halfWidth, x1: S.start.halfWidth, depth: CONFIG.world.shelfDepth }];
     this.D = CONFIG.world.depth;
     this.step = 50;
     this.chunkW = CONFIG.world.chunkWidth;
@@ -23,25 +31,98 @@ class World {
     return lerp(hash(xi, this.salt + k), hash(xi + 1, this.salt + k), s);
   }
 
-  // 0 = shallow shelf, 1 = abyss. The start area (around x = 0) is always shelf.
+  // ---- segments
+  rollType(rng) {
+    const T = CONFIG.segments.types, p = clamp(this.progressFn(), 0, 1);
+    const ws = Object.keys(T).map(k => [k, lerp(T[k].weight[0], T[k].weight[1], p)]);
+    let r = rng() * ws.reduce((a, e) => a + e[1], 0);
+    for (const [k, w] of ws) if ((r -= w) <= 0) return k;
+    return ws[ws.length - 1][0];
+  }
+
+  extend(side) {
+    const S = CONFIG.segments, rng = this.segRng[side], n = this.segCount[side]++;
+    const roll = this.rollType(rng);
+    const type = n === 0 ? S.start.neighbour : roll; // open water is always right next to the start
+    const T = S.types[type], w = lerp(T.width[0], T.width[1], rng()), depth = lerp(T.depth[0], T.depth[1], rng());
+    if (side === 'R') { const e = this.segs[this.segs.length - 1]; this.segs.push({ type, x0: e.x1, x1: e.x1 + w, depth }); }
+    else { const e = this.segs[0]; this.segs.unshift({ type, x0: e.x0 - w, x1: e.x0, depth }); }
+  }
+
+  // Make sure segments exist from x0 to x1 (new ones use the whale's progress right now).
+  cover(x0, x1) {
+    while (x1 >= this.segs[this.segs.length - 1].x1) this.extend('R');
+    while (x0 < this.segs[0].x0) this.extend('L');
+  }
+  isGenerated(x) { return x >= this.segs[0].x0 && x < this.segs[this.segs.length - 1].x1; }
+
+  segIndex(x) {
+    let lo = 0, hi = this.segs.length - 1;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (this.segs[mid].x0 <= x) lo = mid; else hi = mid - 1; }
+    return lo;
+  }
+  segAt(x) { this.cover(x, x); return this.segs[this.segIndex(x)]; }
+
+  // The seabed shape of one segment type at x, before blending with its neighbours.
+  segProfile(seg, x) {
+    const c = CONFIG.world, p = this.ph;
+    if (seg.type === 'beach') return seg.depth + 15 * Math.sin(x / 240 + p[1]); // flat sandy plateau
+    const m = clamp((seg.depth - c.shelfDepth) / (c.abyssDepth - c.shelfDepth), 0, 1);
+    let d = seg.depth;
+    if (seg.type !== 'shelf') {
+      const ridge = Math.max(0, this.noise1(x, 1100, 2) - 0.65) / 0.35; // occasional undersea ridges
+      d -= m * c.ridgeHeight * ridge * ridge * (3 - 2 * ridge);
+    }
+    const rough = lerp(0.35, 1, m);
+    return d + rough * (140 * Math.sin(x / 520 + p[0]) + 70 * Math.sin(x / 190 + p[1]) +
+                        28 * Math.sin(x / 61 + p[2]) + 10 * Math.sin(x / 17 + p[3]));
+  }
+
+  // The slope between two neighbouring segments lies entirely inside the DEEPER one (so beaches and shelves keep
+  // their flat tops). It gets longer the bigger the depth difference, capped so it never fills the deep segment.
+  // Returns the x range of the slope.
+  slopeBetween(a, b) {
+    const S = CONFIG.segments, deeperB = b.depth > a.depth, deep = deeperB ? b : a;
+    const r = Math.min(Math.max(S.ramp, Math.abs(b.depth - a.depth) * S.rampPerDepth), (deep.x1 - deep.x0) * S.maxRampShare);
+    return deeperB ? [a.x1, a.x1 + r] : [a.x1 - r, a.x1];
+  }
+
+  // 0 = shallow shelf, 1 = abyss (deep sea segments). Used for pillars.
   abyssness(x) {
-    const c = CONFIG.world;
-    let m = this.noise1(x, 5000, 1);
-    m = clamp((m - c.abyssBias) / 0.3, 0, 1); m = m * m * (3 - 2 * m);
-    return m * clamp((Math.abs(x) - c.startShelfHalfWidth) / c.startShelfFalloff, 0, 1);
+    const s = this.segAt(x), c = CONFIG.world;
+    return s.type === 'deep' ? 1 : s.type === 'beach' ? 0 : clamp((s.depth - c.shelfDepth) / (c.abyssDepth - c.shelfDepth), 0, 1);
   }
 
   floorRaw(x) {
-    const c = CONFIG.world, m = this.abyssness(x);
-    let d = lerp(c.shelfDepth, c.abyssDepth, m);
-    const ridge = Math.max(0, this.noise1(x, 1100, 2) - 0.65) / 0.35; // occasional undersea ridges
-    d -= m * CONFIG.world.ridgeHeight * ridge * ridge * (3 - 2 * ridge);
-    const p = this.ph, rough = lerp(0.35, 1, m);
-    d += rough * (140 * Math.sin(x / 520 + p[0]) + 70 * Math.sin(x / 190 + p[1]) +
-                  28 * Math.sin(x / 61 + p[2]) + 10 * Math.sin(x / 17 + p[3]));
-    const co = coastNear(x); // coasts: shallow sandy plateaus (see fauna.js)
-    if (co.c > 0) d = lerp(d, CONFIG.coast.depth + 15 * Math.sin(x / 240 + p[1]), co.c);
-    return d;
+    const S = CONFIG.segments, R = S.types.deep.width[1] * S.maxRampShare;
+    this.cover(x - R, x + R);
+    const i = this.segIndex(x), s = this.segs[i], prev = this.segs[i - 1], next = this.segs[i + 1];
+    if (prev) { const [lo, hi] = this.slopeBetween(prev, s); if (x >= lo && x < hi) return this.blend(prev, s, x, lo, hi); }
+    if (next) { const [lo, hi] = this.slopeBetween(s, next); if (x >= lo && x < hi) return this.blend(s, next, x, lo, hi); }
+    return this.segProfile(s, x);
+  }
+  blend(a, b, x, lo, hi) {
+    let t = clamp((x - lo) / (hi - lo), 0, 1); t = t * t * (3 - 2 * t);
+    return lerp(this.segProfile(a, x), this.segProfile(b, x), t);
+  }
+
+  // Beaches (coasts): the beach segment at or next to x, with c = 1 on the plateau fading to 0 down its slopes.
+  coastNear(x) {
+    const S = CONFIG.segments, i = this.segIndex(x);
+    let best = { cx: 0, half: 0, c: 0 };
+    for (let k = i - 1; k <= i + 1; k++) {
+      const s = this.segs[k];
+      if (!s || s.type !== 'beach') continue;
+      const cx = (s.x0 + s.x1) / 2, half = (s.x1 - s.x0) / 2;
+      let c = 1 - clamp((Math.abs(x - cx) - half) / S.ramp, 0, 1);
+      c = c * c * (3 - 2 * c);
+      if (c > best.c) best = { cx, half, c };
+    }
+    return best;
+  }
+  beachesIn(x0, x1) {
+    return this.segs.filter(s => s.type === 'beach' && s.x1 > x0 && s.x0 < x1)
+      .map(s => ({ cx: (s.x0 + s.x1) / 2, half: (s.x1 - s.x0) / 2 }));
   }
 
   // Sampled on the same grid as the floor polygons so collision matches what sonar sees.
@@ -53,6 +134,8 @@ class World {
   // Load chunks within `radius` of x, drop chunks further away.
   ensureAround(x, radius) {
     const cw = this.chunkW, c0 = Math.floor((x - radius) / cw), c1 = Math.floor((x + radius) / cw);
+    const look = CONFIG.segments.lookahead;
+    this.cover(x - radius - look, x + radius + look); // decide upcoming segments a little ahead
     let changed = false;
     for (let c = c0; c <= c1; c++) {
       if (!this.chunks.has(c)) { this.chunks.set(c, this.buildChunk(c)); changed = true; }

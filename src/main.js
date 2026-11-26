@@ -22,7 +22,7 @@ class Game {
   }
 
   reset(stage = 1) {
-    this.world = new World();
+    this.world = new World(undefined, () => this.progress());
     this.whale = new Whale(0, 120);
     this.sonar = new Sonar();
     this.kraken = null; this.krakenFound = false; this.krakenDone = false;
@@ -46,6 +46,15 @@ class Game {
   viewScale() { return this.whale.size ** CONFIG.growth.viewExp; }
   activeRadius() { return CONFIG.world.activeRadius * this.viewScale(); }
   despawnRadius() { return CONFIG.world.despawnRadius * this.viewScale(); }
+
+  // How developed the whale is, 0..1: the average of size progress and upgrade levels (bought + quest bonus,
+  // capped at max). Drives which map segments appear (CONFIG.segments).
+  progress() {
+    const w = this.whale, G = CONFIG.growth, U = CONFIG.upgrades;
+    const sizeF = (w.size - 1) / (G.maxSize - 1);
+    const lv = U.reduce((a, u) => a + Math.min(u.max, (w.levels[u.id] || 0) + (w.bonusLevels[u.id] || 0)), 0);
+    return clamp((sizeF + lv / U.reduce((a, u) => a + u.max, 0)) / 2, 0, 1);
+  }
 
   say(text, secs = 4, color = '#e8f4ff') { this.message = { text, t: secs, color }; }
 
@@ -281,7 +290,7 @@ class Game {
     const w = this.whale, R = this.activeRadius();
     for (let tries = 0; tries < 40; tries++) {
       const x = rand(w.x - R, w.x + R);
-      if (def.coastOnly && coastNear(x).c < 0.6) continue;
+      if (def.coastOnly && this.world.coastNear(x).c < 0.6) continue;
       const floor = this.world.floorAt(x);
       let y;
       if (def.bottom) y = floor - 6;
@@ -296,7 +305,7 @@ class Game {
     return null;
   }
   manageFauna(minD) {
-    const w = this.whale, C = CONFIG.coast, SW = CONFIG.swimmers;
+    const w = this.whale, SW = CONFIG.swimmers;
     for (const def of CONFIG.fauna) {
       const leaders = this.fauna.filter(f => f.def === def && !f.leader).length;
       if (leaders >= def.count) continue;
@@ -308,15 +317,13 @@ class Game {
     }
     // swimmers at nearby coasts (they stay out of the water while you are wanted)
     if (this.wanted >= SW.hideAtWanted) return;
-    const k0 = Math.round((w.x - C.firstAt) / C.spacing);
-    for (let k = k0 - 1; k <= k0 + 1; k++) {
-      const cx = coastCenter(k);
-      if (Math.abs(cx - w.x) > this.activeRadius() + C.halfWidth) continue;
+    const R = this.activeRadius();
+    for (const { cx, half } of this.world.beachesIn(w.x - R, w.x + R)) {
       const n = this.swimmers.filter(s => s.coastX === cx).length;
       for (let i = n; i < SW.count; i++) {
-        const x = cx + rand(-C.halfWidth, C.halfWidth) * 0.8, y = rand(SW.depthMin, SW.depthMax);
+        const x = cx + rand(-half, half) * 0.6, y = rand(SW.depthMin, SW.depthMax);
         if (dist(x, y, w.x, w.y) < minD) continue;
-        this.swimmers.push(new Swimmer(x, y, cx));
+        this.swimmers.push(new Swimmer(x, y, cx, half));
       }
     }
   }
@@ -328,7 +335,8 @@ class Game {
     for (let tries = 0; tries < 120; tries++) {
       const side = Math.random() < 0.5 ? -1 : 1;
       const x = w.x + side * rand(K.spawnMinDist, K.spawnMaxDist * (1 + tries / 40)); // widen the search if needed
-      if (Math.abs(x) < K.minDistFromStart || this.world.floorAt(x) < K.minFloor) continue;
+      // only already-decided segments: probing far ahead must not lock in segments at today's progress
+      if (Math.abs(x) < K.minDistFromStart || !this.world.isGenerated(x) || this.world.floorAt(x) < K.minFloor) continue;
       this.kraken = new Kraken(x, this.world.floorAt(x) - K.hover);
       return;
     }
