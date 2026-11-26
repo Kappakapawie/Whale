@@ -21,7 +21,7 @@ Lighting is depth-based: bright and readable near the surface, fading to near-bl
 echoes are the only way to see.
 
 **Second act - the cosmic realm.** Mythical creatures live in the deepest water. At the floor of a rare trench
-(~2900 m, the deepest point) they gather around you and you ascend - one-way - into a godly state where the
+(~4500 m, far below the normal ocean - the deepest point) they gather around you and you ascend - one-way - into a godly state where the
 environment becomes outer space (an "intergalactic soup" of stars, nebulae, galaxies and planets). It is the same
 game reskinned, with its own food chain of cosmic fish ending in the Star Serpent boss.
 
@@ -74,8 +74,9 @@ game reskinned, with its own food chain of cosmic fish ending in the Star Serpen
 - **Mythical creatures** (`CONFIG.fauna` entries with `mythic: true`: sea serpent, leviathan, ghost jelly, lantern
   dragon, bone eel; shapes in fauna.js) live only in the deepest water (depthMin >= 4500 units). Not food, they
   ignore you; seen by their glow and on sonar.
-- **The ascension** (`Game.updateAscension`, `CONFIG.ascension`): rare `trench` segments (~2900 m, no ridges, weight
-  grows with progress) are the deepest point, reachable only by a whale that can dive that deep. Within
+- **The ascension** (`Game.updateAscension`, `CONFIG.ascension`): rare `trench` segments (~4500 m, no ridges; none for a new
+  whale, ~1 per 70,000-110,000 units late) are the deepest point: a steep shaft only a full-grown whale with
+  Pressure Tolerance upgrades can reach the bottom of (`world.depth` 12500 covers it). Within
   `triggerDist` of the trench floor the mythical creatures gather in a ring around you (`Fauna.orbit`), a violet glow
   builds and a white flash takes you into the cosmic realm (`Game.enterCosmic`). One-way.
 - **The cosmic realm** (`game.cosmic`, `whale.cosmic`, `CONFIG.cosmic`): a new `World` with `{ cosmic: true }` (only
@@ -84,7 +85,9 @@ game reskinned, with its own food chain of cosmic fish ending in the Star Serpen
   surface (soft `ceiling`), no ships/orcas/kraken/humans/ambient ocean life - but hunger stays. Its food chain is the
   `cosmic: true` species at the end of `CONFIG.species` (star minnow -> comet eel -> nebula ray -> moon jelly ->
   void squid -> starfin -> Star Serpent boss); they glow (`sp.glow`). Use `Game.realmSpecies()` (never the raw list)
-  for spawning, meals, carcasses and quests; `Whale.nextSpecies()` never crosses realms. HUD shows "∞ / BEYOND THE
+  for spawning, meals, carcasses and quests. Space is big and the fish are invisible, so cosmic counts are
+  multiplied (`cosmic.countMult`) and the meal director uses `cosmic.mealDirector` (watches about one paint throw's
+  reach and spawns meals close by); `Whale.nextSpecies()` never crosses realms. HUD shows "∞ / BEYOND THE
   DEEP" and no depth thread.
 - **Paint sense replaces sonar in the cosmic realm** (`Game.throwPaint`/`updatePaint`, `drawPaint`, `CONFIG.paint`).
   A click throws two paints in stripes (beam: a wide band of parallel stripes toward the mouse; burst: outwards from
@@ -184,8 +187,8 @@ game reskinned, with its own food chain of cosmic fish ending in the Star Serpen
 - **Darkness is real.** All world drawing happens *before* the darkness overlay. Only sonar echoes, bioluminescent
   specks, the player's faint self-outline and the HUD are drawn after it.
 - Side view: x is horizontal, y increases **downward**, the water surface is y = 0, the sky is y < 0.
-- **Real-world scales.** Depth: 1 unit = `metersPerUnit` (0.4 m); the deepest seabed is ~3000 m, the deepest a
-  sperm whale dives. Bodies use `bodyMetersPerUnit` (0.026 m), so the whale is a 4.7 m calf at size 1 and a 14 m
+- **Real-world scales.** Depth: 1 unit = `metersPerUnit` (0.4 m); the normal seabed is ~3000 m at most, the deepest a
+  sperm whale dives (only the mythical trench goes deeper, ~4500 m). Bodies use `bodyMetersPerUnit` (0.026 m), so the whale is a 4.7 m calf at size 1 and a 14 m
   adult at size 3, and every species has its real length and real depth range (see comments in `CONFIG.species`;
   the food chain is ordered by real size). Max dive depth grows with size (1000 m -> 3000 m, Pressure Tolerance
   upgrade); deeper than that the pressure hurts.

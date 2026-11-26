@@ -5,7 +5,7 @@ const CONFIG = {
   // populated within activeRadius of the whale and removed beyond despawnRadius.
   // Both radii are multiplied by size^growth.viewExp as the whale grows (the camera zooms out).
   world: {
-    depth: 7500, skyHeight: 500,
+    depth: 12500, skyHeight: 500, // deepest point = the trench floor (~4500 m)
     chunkWidth: 1600,
     activeRadius: 4500, despawnRadius: 5500,
     shelfDepth: 520, abyssDepth: 6500,   // used to scale roughness/ridges between shallow and deep segments
@@ -26,7 +26,7 @@ const CONFIG = {
       shelf: { weight: [0.40, 0.07], width: [2000, 5000], depth: [375, 625] },   // ~150-250 m
       open:  { weight: [0.35, 0.40], width: [2500, 6000], depth: [1500, 3750] }, // ~600-1500 m
       deep:  { weight: [0.10, 0.50], width: [3500, 8000], depth: [5500, 6500] }, // ~2200-2600 m
-      trench: { weight: [0.04, 0.12], width: [2600, 3400], depth: [7200, 7300] }, // ~2900 m: the deepest point (ascension)
+      trench: { weight: [0, 0.08], width: [4200, 5200], depth: [11100, 11400] }, // ~4500 m: the deepest point (ascension)
     },
     start: { type: 'shelf', halfWidth: 900, neighbour: 'open' },
     ramp: 700, rampPerDepth: 0.6, maxRampShare: 0.45, lookahead: 8000,
@@ -219,23 +219,23 @@ const CONFIG = {
     // "intergalactic soup". Same rules as the ocean: eat 10 of your top species to unlock the next. They glow
     // (sp.glow, drawn after the darkness). Flee speeds stay below a full-grown whale's sprint (~120).
     { id: 'starminnow', name: 'Star Minnow',  shape: 'fish',      length: 30,  color: '#cfeeff', minSize: 3, cosmic: true,
-      mass: 60,  ep: 60,  energy: 120, depthMin: 600,  depthMax: 5800, count: 3, group: 7, speed: 45, fleeSpeed: 105,
+      mass: 60,  ep: 60,  energy: 120, depthMin: 600,  depthMax: 5800, count: 3, group: 7, speed: 45, fleeSpeed: 90,
       glow: { c: [190, 235, 255], pts: [[0, 0]], r: 6, speed: 3 } },
     { id: 'cometeel',   name: 'Comet Eel',    shape: 'oarfish',   length: 180, color: '#8fd4ff', minSize: 3, cosmic: true,
-      mass: 90,  ep: 90,  energy: 160, depthMin: 600,  depthMax: 5800, count: 4, speed: 40, fleeSpeed: 105,
+      mass: 90,  ep: 90,  energy: 160, depthMin: 600,  depthMax: 5800, count: 4, speed: 40, fleeSpeed: 88,
       glow: { c: [120, 210, 255], pts: [[50, 0], [-50, 0]], r: 10, speed: 2 } },
     { id: 'nebularay',  name: 'Nebula Ray',   shape: 'ray',       length: 280, color: '#b48cff', minSize: 3, cosmic: true,
-      mass: 130, ep: 130, energy: 200, depthMin: 600,  depthMax: 5800, count: 4, speed: 30, fleeSpeed: 95,
+      mass: 130, ep: 130, energy: 200, depthMin: 600,  depthMax: 5800, count: 4, speed: 30, fleeSpeed: 80,
       glow: { c: [190, 140, 255], pts: [[-40, 0], [20, -6], [20, 6]], r: 14, speed: 1.4 } },
     { id: 'moonjelly',  name: 'Moon Jelly',   shape: 'jelly',     length: 320, color: '#e8e0c0', minSize: 3, cosmic: true,
       mass: 170, ep: 170, energy: 240, depthMin: 600,  depthMax: 5800, count: 4, speed: 14, fleeSpeed: 60,
       glow: { c: [255, 240, 200], pts: [[10, 0]], r: 26, speed: 1 } },
     { id: 'voidsquid',  name: 'Void Squid',   shape: 'squid',     length: 420, color: '#4a3d8a', minSize: 3, cosmic: true,
-      mass: 220, ep: 220, energy: 300, depthMin: 600,  depthMax: 5800, count: 3, speed: 30, fleeSpeed: 95,
+      mass: 220, ep: 220, energy: 300, depthMin: 600,  depthMax: 5800, count: 3, speed: 30, fleeSpeed: 85,
       glow: { c: [140, 120, 255], pts: [[30, 0], [-30, -8], [-30, 8]], r: 12, speed: 2.2 },
       attack: { damage: 14, cooldown: 1.4, range: 500, chaseSpeed: 60, chaseTime: 5, rest: 30 } },
     { id: 'starfin',    name: 'Starfin',      shape: 'tuna',      length: 460, color: '#ffd98a', minSize: 3, cosmic: true,
-      mass: 280, ep: 280, energy: 360, depthMin: 600,  depthMax: 5800, count: 3, speed: 45, fleeSpeed: 110,
+      mass: 280, ep: 280, energy: 360, depthMin: 600,  depthMax: 5800, count: 3, speed: 45, fleeSpeed: 95,
       glow: { c: [255, 215, 140], pts: [[2, -26], [2, 24], [-46, 0]], r: 12, speed: 2.8 } },
     { id: 'starserpent', name: 'Star Serpent', shape: 'serpent',  length: 1100, color: '#6a4cff', minSize: 3, cosmic: true,
       mass: 600, ep: 1000, energy: 800, depthMin: 1500, depthMax: 5000, count: 1, speed: 30, fleeSpeed: 70,
@@ -243,8 +243,8 @@ const CONFIG = {
       hp: 260, final: true, attack: { damage: 16, cooldown: 1.0, range: 900, chaseSpeed: 55, chaseTime: 10, rest: 15 } },
   ],
 
-  // The deepest point: rare 'trench' segments (CONFIG.segments) drop to ~2900 m - only a whale that can dive that
-  // deep (size + Pressure Tolerance) reaches the bottom. Within triggerDist (x size) of the trench floor the
+  // The deepest point: rare 'trench' segments (CONFIG.segments) drop to ~4500 m - far below the normal ocean, so only
+  // a full-grown whale with Pressure Tolerance upgrades reaches the bottom (none appear for a new whale). Within triggerDist (x size) of the trench floor the
   // mythical creatures gather in a ring around you (ringCount at ringRadius x size), and after gatherTime you
   // ascend: a flash, and the ocean becomes outer space for good (one-way). See Game.updateAscension.
   ascension: { triggerDist: 260, gatherTime: 7, flashTime: 3, ringCount: 10, ringRadius: 300, ringSpeed: 0.12 },
@@ -262,7 +262,11 @@ const CONFIG = {
   paint: { beamSeeds: 48, burstSeeds: 72, beamFan: 0.45, beamWidth: 420, burstRing: 110, speed: 230, flowTime: 2.4,
            fadeTime: 3.2, drip: 35, step: 14, bubble: 1.8, bubbleMin: 20, wobble: 0.6, width: 1.7, colors: [[95, 240, 255], [255, 106, 213]], showFish: false },
 
-  cosmic: { ceiling: 250, darkness: 0.35,
+  // countMult: cosmic species counts are multiplied (space is big). mealDirector: overrides for the meal director in
+  // space - it watches a smaller area (about one paint throw's reach) and spawns meals close by; the cosmic fish are
+  // invisible anyway, so they can appear nearer than out-of-sight.
+  cosmic: { ceiling: 250, darkness: 0.35, countMult: 1.5,
+            mealDirector: { huntRange: 550, spawnMinDist: 420, spawnMaxDist: 650, graceTime: 6, hungryGraceTime: 3 },
             types: { void: { weight: [1, 1], width: [4000, 9000], depth: [6200, 7000] } } },
 
   orca: {
@@ -340,15 +344,15 @@ const CONFIG = {
     // Mythical creatures (mythic: true): only in the deepest water (deep sea and trench segments), more of them the
     // deeper you go. Not food, they ignore you; mostly seen by their glow and on sonar. At the trench floor they
     // gather around you before the ascension.
-    { id: 'serpent',   name: 'Sea Serpent',    shape: 'serpent',   length: 900,  color: '#24414a', depthMin: 4500, depthMax: 7300, count: 1, spawnChance: 0.4, speed: 30, mythic: true,
+    { id: 'serpent',   name: 'Sea Serpent',    shape: 'serpent',   length: 900,  color: '#24414a', depthMin: 4500, depthMax: 11600, count: 1, spawnChance: 0.4, speed: 30, mythic: true,
       glow: { c: [90, 230, 210], pts: [[46, -3], [30, 0], [14, 0], [-2, 0], [-18, 0], [-34, 0]], r: 10, speed: 1.3 } },
-    { id: 'leviathan', name: 'Leviathan',      shape: 'leviathan', length: 1700, color: '#151c24', depthMin: 5200, depthMax: 7300, count: 1, spawnChance: 0.25, speed: 20, mythic: true,
+    { id: 'leviathan', name: 'Leviathan',      shape: 'leviathan', length: 1700, color: '#151c24', depthMin: 5200, depthMax: 11600, count: 1, spawnChance: 0.25, speed: 20, mythic: true,
       glow: { c: [255, 120, 90], pts: [[40, -6]], r: 18, speed: 0.6 } },
-    { id: 'ghostjelly', name: 'Ghost Jelly',   shape: 'jelly',     length: 520,  color: '#a8b8d8', depthMin: 4800, depthMax: 7300, count: 1, spawnChance: 0.35, speed: 6, drift: true, mythic: true,
+    { id: 'ghostjelly', name: 'Ghost Jelly',   shape: 'jelly',     length: 520,  color: '#a8b8d8', depthMin: 4800, depthMax: 11600, count: 1, spawnChance: 0.35, speed: 6, drift: true, mythic: true,
       glow: { c: [170, 200, 255], pts: [[0, -14], [0, 14], [20, 0], [-30, 0]], r: 20, speed: 0.9 } },
-    { id: 'dragon',    name: 'Lantern Dragon', shape: 'dragon',    length: 280,  color: '#2a2230', depthMin: 4500, depthMax: 7300, count: 2, spawnChance: 0.4, speed: 40, mythic: true,
+    { id: 'dragon',    name: 'Lantern Dragon', shape: 'dragon',    length: 280,  color: '#2a2230', depthMin: 4500, depthMax: 11600, count: 2, spawnChance: 0.4, speed: 40, mythic: true,
       glow: { c: [255, 200, 120], pts: [[60, -30], [20, 4], [-10, 4], [-40, 2]], r: 9, speed: 2 } },
-    { id: 'boneeel',   name: 'Bone Eel',       shape: 'serpent',   length: 420,  color: '#cfc6b0', depthMin: 4500, depthMax: 7300, count: 2, spawnChance: 0.4, speed: 35, mythic: true,
+    { id: 'boneeel',   name: 'Bone Eel',       shape: 'serpent',   length: 420,  color: '#cfc6b0', depthMin: 4500, depthMax: 11600, count: 2, spawnChance: 0.4, speed: 35, mythic: true,
       glow: { c: [220, 230, 255], pts: [[46, -3]], r: 7, speed: 2.5 } },
     { id: 'crab',      name: 'Deep-sea Crab',  shape: 'crab',    length: 22,   color: '#9a6a3a', depthMin: 0,    depthMax: 7500, count: 6, speed: 8, bottom: true, scavenger: true },
   ],

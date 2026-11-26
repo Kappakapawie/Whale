@@ -132,9 +132,10 @@ class Game {
 
     for (const sp of this.realmSpecies()) {
       if (sp.final && this.finalsBeaten.has(sp.id)) continue;
+      const count = sp.count * (sp.cosmic ? CONFIG.cosmic.countMult : 1);
       if (sp.group) {
         const groups = this.groups.filter(g => g.sp === sp);
-        for (let i = groups.length; i < sp.count; i++) this.spawnGroup(sp, minD);
+        for (let i = groups.length; i < count; i++) this.spawnGroup(sp, minD);
         for (const g of groups) { // top up groups that lost members, out of sight only
           if (dist(g.x, g.y, w.x, w.y) < minD) continue;
           const n = this.prey.filter(p => p.group === g).length;
@@ -142,7 +143,7 @@ class Game {
         }
       } else {
         let n = this.prey.filter(p => p.sp === sp).length;
-        for (let tries = 0; n < sp.count && tries < 4; tries++) {
+        for (let tries = 0; n < count && tries < 4; tries++) {
           const p = this.spawnPoint(sp, minD);
           if (p) { this.prey.push(new Prey(sp, p.x, p.y)); n++; }
         }
@@ -233,7 +234,7 @@ class Game {
   // has been within huntRange for `graceTime` seconds, spawn one (a random unlocked species - not
   // necessarily the best one) just out of sight but within reach of the sonar.
   updateMealDirector(dt) {
-    const D = CONFIG.mealDirector, w = this.whale;
+    const D = this.cosmic ? { ...CONFIG.mealDirector, ...CONFIG.cosmic.mealDirector } : CONFIG.mealDirector, w = this.whale;
     if (!w.alive) return;
     const range = D.huntRange * w.size;
     const hasMeal = this.prey.some(p => w.canEat(p.sp) && w.nutrition(p.sp) >= D.minWorth &&
@@ -251,7 +252,7 @@ class Game {
     options = options.map(sp => ({ sp, k: Math.random() * Math.pow(1 + Math.max(0, 4 - (topI - CONFIG.species.indexOf(sp))), 2) }))
                      .sort((a, b) => b.k - a.k).map(o => o.sp);
     const halfView = this.cw / (2 * this.cam.z);
-    const minD = halfView + 200, maxD = Math.max(minD + 400, D.spawnMaxDist * w.size);
+    const minD = this.cosmic ? D.spawnMinDist * w.size : halfView + 200, maxD = Math.max(minD + 400, D.spawnMaxDist * w.size);
     for (const sp of options) {
       const ok = sp.group ? this.spawnGroup(sp, minD, maxD) : (() => {
         const p = this.spawnPoint(sp, minD, maxD);
