@@ -723,7 +723,20 @@ class Game {
     this.flash = Math.max(0, this.flash - dt * 2);
     this.updateCamera(dt);
 
-    if (!w.alive) { this.state = 'dead'; this.saveBest(); }
+    if (!w.alive && CONFIG.debug.noDeath) this.respawnAtSurface();
+    else if (!w.alive) { this.state = 'dead'; this.saveBest(); }
+  }
+
+  // Test mode (CONFIG.debug.noDeath): instead of dying, the whale is healed and put back at the surface
+  // straight above where it died. Size, diet, upgrades and quests are kept.
+  respawnAtSurface() {
+    const w = this.whale, s = w.stats;
+    this.say(`TEST MODE: ${w.lastDamage || 'You died.'} Sent back to the surface.`, 4, '#ffd166');
+    w.alive = true; w.health = s.maxHealth; w.oxygen = s.maxOxygen; w.energy = Math.max(w.energy, s.maxEnergy * 0.7);
+    w.y = s.breathDepth * 0.5; w.vx = 0; w.vy = 0;
+    w.invuln = CONFIG.debug.respawnInvuln; w.lastDamage = '';
+    this.fight = null;
+    this.updateCamera(0, true);
   }
 
   tick(dt) {

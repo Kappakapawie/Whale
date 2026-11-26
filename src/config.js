@@ -293,6 +293,10 @@ const CONFIG = {
     millRadius: 160, millSpin: 0.5, wobble: 18,
   },
 
+  // Testing only. noDeath: dying heals you and puts you back at the surface above where you died
+  // (respawnInvuln s of invulnerability). Set noDeath to false for the real game.
+  debug: { noDeath: true, respawnInvuln: 3 },
+
   // Sound menu (pause screen). Volumes 0..1, saved per browser under storageKey.
   audio: {
     storageKey: 'deepEcho.volume',

@@ -221,6 +221,8 @@ then open http://localhost:8123 (the `deep-echo` entry in `.claude/launch.json` 
 - Whaling ships appear once `size >= growth.humansAtSize` (~half of max) and harpoon whales near the surface.
 - Returning echoes from creatures also play a faint audio tick.
 - Upgrades are per run (lost on death).
+- **Test mode is ON** (`CONFIG.debug.noDeath`): instead of dying you're healed and put back at the surface above
+  where you died (`Game.respawnAtSurface`), keeping your progress. Set it to `false` before a real release.
 
 ## Roadmap / later
 
