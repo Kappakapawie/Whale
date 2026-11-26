@@ -313,7 +313,7 @@ const CONFIG = {
   // stages: how far through the game each preset is (0 = new game, 1 = everything): size, diet, eaten counts,
   // upgrade levels, species scans and kraken scan all use this fraction. Stage 5 stops at the oarfish, so the
   // giant squid is still the next fight.
-  debug: { noDeath: true, respawnInvuln: 3, tools: true, stages: [0, 0.4, 0.6, 0.8, 1], unstuckInvuln: 2 },
+  debug: { noDeath: true, respawnInvuln: 3, tools: true, stages: [0, 0.25, 0.5, 0.75, 1], unstuckInvuln: 2 },
 
   // Sound menu (pause screen). Volumes 0..1, saved per browser under storageKey.
   audio: {
