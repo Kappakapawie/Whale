@@ -276,8 +276,9 @@ function drawGlows(ctx, game, x0, x1, y0, y1, px) {
       glowDot(ctx, p[0], p[1], Math.max(r * 0.2, 2.5 * px), [230, 250, 255], pulse * dark);
     }
   }
-  for (const p of game.prey) { // glowing food-chain species (the cosmic ones)
+  for (const p of game.prey) { // glowing food-chain species (the cosmic ones; hidden by the paint sense)
     const G = p.sp.glow;
+    if (game.cosmic && !CONFIG.paint.showFish) break;
     if (!G || p.x < x0 - 300 || p.x > x1 + 300 || p.y < y0 - 300 || p.y > y1 + 300) continue;
     const pulse = 0.6 + 0.4 * Math.sin(t * (G.speed || 2) + p.x * 0.01);
     const r = Math.max(G.r * Math.max(0.6, p.scale) * 2.5, 12 * px);

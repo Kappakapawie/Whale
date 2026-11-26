@@ -72,8 +72,9 @@ function drawGame(game) {
   }
 
   // --- Creatures, humans
+  const hideFish = game.cosmic && !CONFIG.paint.showFish; // in space you only see the holes fish leave in the paint
   for (const p of game.prey) {
-    if (!inView(p.solid, 20)) continue;
+    if (hideFish || !inView(p.solid, 20)) continue;
     ctx.fillStyle = p.sp.color; tracePoly(ctx, p.poly); ctx.fill();
   }
   drawDecor(ctx, game.world.decor, x0, x1, t);
@@ -166,6 +167,7 @@ function drawGame(game) {
   drawGlows(ctx, game, x0, x1, y0, y1, px);
   drawModels(ctx, game, px);
   drawSonar(ctx, game, px);
+  if (game.cosmic) drawPaint(ctx, game, px);
 
   // Floating "+EP" texts
   ctx.textAlign = 'center'; ctx.font = `bold ${14 * px}px system-ui, sans-serif`;
@@ -196,6 +198,30 @@ function drawGame(game) {
   }
   drawHUD(ctx, game);
   updateCursor(game);
+}
+
+// ---------------------------------------------------------------- paint sense (the cosmic realm's sonar)
+// Each line is a run of thrown paint: two paints in stripes that blend where they cross ('lighter'), turning green
+// or yellow where they brush a creature. The creature itself is never drawn - only the bubble it leaves.
+function drawPaint(ctx, game, px) {
+  const P = CONFIG.paint, SC = CONFIG.sonar.colors;
+  const cols = [P.colors[0], P.colors[1], SC.edible, SC.inedible];
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.lineWidth = P.width * px * Math.max(1, Math.sqrt(game.whale.size));
+  for (const l of game.paint) {
+    const age = game.time - l.t0, a = age < P.flowTime ? 0.8 : 0.8 * (1 - (age - P.flowTime) / P.fadeTime);
+    if (a <= 0 || l.pts.length < 2) continue;
+    let k = 1;
+    while (k < l.pts.length) {
+      const c = l.pts[k][2], col = cols[c] || cols[0];
+      ctx.strokeStyle = `rgba(${col[0]},${col[1]},${col[2]},${a.toFixed(3)})`;
+      ctx.beginPath(); ctx.moveTo(l.pts[k - 1][0], l.pts[k - 1][1]);
+      while (k < l.pts.length && l.pts[k][2] === c) { ctx.lineTo(l.pts[k][0], l.pts[k][1]); k++; }
+      if (k === l.pts.length && l.flowing) ctx.lineTo(l.x, l.y); // the wet tip
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
 }
 
 // ---------------------------------------------------------------- outer space (the cosmic realm)

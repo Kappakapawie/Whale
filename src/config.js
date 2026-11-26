@@ -252,6 +252,16 @@ const CONFIG = {
   // The cosmic realm ("intergalactic soup"): the same game in a space reskin. No air (godly), hunger stays, no
   // ships/orcas/kraken/humans. The floor is far-away cosmic rock; `ceiling` gently pushes you back down (y).
   // darkness = flat dimming over the world (stars and glows stay bright).
+  // Paint sense: in the cosmic realm the sonar is replaced by thrown paint (Game.throwPaint/updatePaint,
+  // drawPaint). A beam throws `beamSeeds` nearly parallel stripes from a `beamWidth`-wide band toward the mouse, a
+  // burst `burstSeeds` lines outwards from a ring (`burstRing`) around you.
+  // Lines flow at `speed` (x size) for `flowTime` s (with a slow `drip` downwards), bend around every creature
+  // (a bubble of `bubble` x its body radius) and fade over `fadeTime`. Two paints in stripes (`colors`) that blend
+  // where they cross; where a line brushes a creature it takes the creature's colour (green = in your diet,
+  // yellow = not). The cosmic fish themselves are not drawn (showFish), you only see the hole they leave.
+  paint: { beamSeeds: 48, burstSeeds: 72, beamFan: 0.45, beamWidth: 420, burstRing: 110, speed: 230, flowTime: 2.4,
+           fadeTime: 3.2, drip: 35, step: 14, bubble: 1.8, bubbleMin: 20, wobble: 0.6, width: 1.7, colors: [[95, 240, 255], [255, 106, 213]], showFish: false },
+
   cosmic: { ceiling: 250, darkness: 0.35,
             types: { void: { weight: [1, 1], width: [4000, 9000], depth: [6200, 7000] } } },
 

@@ -30,6 +30,7 @@ class Game {
     this.prey = []; this.groups = []; this.pods = []; this.orcas = [];
     this.ships = []; this.harpoons = []; this.particles = []; this.popups = [];
     this.gore = { chunks: [], clouds: [] };
+    this.paint = []; // paint-sense lines (cosmic realm)
     this.fauna = []; this.swimmers = []; this.wanted = 0; this.wantedT = 0; this.intelT = 0; this.carcasses = [];
     this.quests = new Quests(this);
     this.locks = new Map(); this.acquired = new Map(); // Echo Lock state
@@ -96,7 +97,7 @@ class Game {
     this.prey = []; this.groups = []; this.pods = []; this.orcas = []; this.ships = []; this.harpoons = [];
     this.fauna = []; this.swimmers = []; this.carcasses = []; this.kraken = null; this.gore = { chunks: [], clouds: [] };
     this.wanted = 0; this.humanHeat = 0; this.whaleIntel = null; this.fight = null;
-    this.sonar.echoes = []; this.sonar.models = []; this.sonar.pings = [];
+    this.sonar.echoes = []; this.sonar.models = []; this.sonar.pings = []; this.paint = [];
     const first = CONFIG.species.find(sp => sp.cosmic);
     w.diet.add(first.id); // the cosmic food chain starts here
     this.quests = new Quests(this);
@@ -421,6 +422,7 @@ class Game {
     if (!w.alive || w.y < 0 || this.state !== 'playing') return;
     const h = w.head, m = this.mouseWorld();
     const aim = Math.atan2(m.y - h.y, m.x - h.x);
+    if (this.cosmic) { this.throwPaint(type, h.x, h.y, aim); return; } // godly sense: paint instead of sonar
     const res = this.sonar.emit(type, h.x, h.y, aim, this.allSolids(), this.time, {
       classify: solid => this.echoClass(solid),
       skipEcho: solid => { const o = solid.owner; if (o instanceof Kraken) return this.krakenDone;
@@ -741,6 +743,65 @@ class Game {
     this.carcasses = this.carcasses.filter(c => !c.dead);
   }
 
+  // ------------------------------------------------------------ paint sense (the cosmic realm's sonar)
+  throwPaint(type, x, y, aim) {
+    const P = CONFIG.paint, S = CONFIG.sonar, w = this.whale, s = w.stats;
+    if (this.sonar.cool[type] > 0) return;
+    this.sonar.cool[type] = this.sonar.maxCool[type] = S[type].cooldown * s.sonarCooldownMult;
+    this.sfx.click(type === 'beam');
+    const n = type === 'beam' ? P.beamSeeds : P.burstSeeds, sp = P.speed * w.size;
+    const fan = P.beamFan * s.sonarConeMult, hit = new Set(); // one shared set: each creature counts once per throw
+    for (let i = 0; i < n; i++) {
+      // beam: a wide band of nearly parallel stripes; burst: a ring around you, flowing outwards
+      const f = i / (n - 1) - 0.5, a = type === 'beam' ? aim + f * fan : i / n * TAU;
+      const off = type === 'beam' ? f * P.beamWidth * w.size : P.burstRing * w.size;
+      const sx = type === 'beam' ? x - Math.sin(aim) * off : x + Math.cos(a) * off;
+      const sy = type === 'beam' ? y + Math.cos(aim) * off : y + Math.sin(a) * off;
+      this.paint.push({ x: sx, y: sy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, pts: [[sx, sy, Math.floor(i / 2) % 2]],
+        t0: this.time, flowing: true, seed: i * 1.7, paint: Math.floor(i / 2) % 2, hit });
+    }
+  }
+
+  updatePaint(dt) {
+    const P = CONFIG.paint, w = this.whale, z = w.size, step = P.step * z, sp = P.speed * z;
+    if (!this.paint.some(l => l.flowing)) { this.paint = this.paint.filter(l => this.time - l.t0 < P.flowTime + P.fadeTime); return; }
+    const reach = sp * P.flowTime + 400 * z; // only creatures the paint can reach
+    const near = this.prey.filter(p => Math.abs(p.x - w.x) < reach && Math.abs(p.y - w.y) < reach);
+    for (const l of this.paint) {
+      if (!l.flowing) continue;
+      const age = this.time - l.t0;
+      if (age > P.flowTime) { l.flowing = false; continue; }
+      // organic wobble + a slow drip downwards, like paint running down a wall
+      const wob = Math.sin(this.time * 3 + l.seed) * P.wobble * dt;
+      const c = Math.cos(wob), s = Math.sin(wob);
+      [l.vx, l.vy] = [l.vx * c - l.vy * s, l.vx * s + l.vy * c + P.drip * z * dt];
+      let colour = l.paint;
+      for (const p of near) { // flow around every creature: it leaves a bubble in the paint
+        const R = p.radius * P.bubble + P.bubbleMin * z, dx = l.x - p.x, dy = l.y - p.y, r = Math.hypot(dx, dy);
+        if (r > R * 2 || r < 1e-3) continue;
+        const nx = dx / r, ny = dy / r, vn = l.vx * nx + l.vy * ny;
+        if (vn < 0) { const k = clamp((2 * R - r) / R, 0, 1); l.vx -= nx * vn * k; l.vy -= ny * vn * k; }
+        if (r < R) { l.x = p.x + nx * R; l.y = p.y + ny * R; }
+        if (r < R * 1.3) {
+          colour = this.echoClass(p.solid) === 'edible' ? 2 : 3;
+          if (!l.hit.has(p)) { l.hit.add(p); this.paintScan(p); }
+        }
+      }
+      const v = Math.hypot(l.vx, l.vy) || 1; l.vx *= sp / v; l.vy *= sp / v; // paint keeps its pace
+      l.x += l.vx * dt; l.y += l.vy * dt;
+      if (this.world.blocked(l.x, l.y)) { l.flowing = false; continue; } // stops on rock
+      const last = l.pts[l.pts.length - 1];
+      if (Math.hypot(l.x - last[0], l.y - last[1]) >= step) l.pts.push([l.x, l.y, colour]);
+    }
+    this.paint = this.paint.filter(l => this.time - l.t0 < P.flowTime + P.fadeTime);
+  }
+
+  // Paint brushing a creature counts as one scan of its species (quests, scan %), at most once per creature per throw.
+  paintScan(p) {
+    const key = this.speciesKey(p);
+    this.whale.scans[key] = Math.min(CONFIG.sonar.model.scansForFull, (this.whale.scans[key] || 0) + 1);
+  }
+
   // ------------------------------------------------------------ gore
   // A kill at (x, y): `radius` = the prey's body radius, `kind` = its echo colour class (edible / inedible).
   spawnGore(x, y, radius, kind, vx = 0, vy = 0) {
@@ -834,6 +895,7 @@ class Game {
     this.flash = Math.max(0, this.flash - dt * CONFIG.damageFx.decay);
     this.updateGore(dt);
     this.updateAscension(dt);
+    this.updatePaint(dt);
     this.updateCamera(dt);
 
     if (!w.alive && CONFIG.debug.noDeath) this.respawnAtSurface();

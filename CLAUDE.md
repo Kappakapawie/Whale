@@ -86,6 +86,13 @@ game reskinned, with its own food chain of cosmic fish ending in the Star Serpen
   void squid -> starfin -> Star Serpent boss); they glow (`sp.glow`). Use `Game.realmSpecies()` (never the raw list)
   for spawning, meals, carcasses and quests; `Whale.nextSpecies()` never crosses realms. HUD shows "∞ / BEYOND THE
   DEEP" and no depth thread.
+- **Paint sense replaces sonar in the cosmic realm** (`Game.throwPaint`/`updatePaint`, `drawPaint`, `CONFIG.paint`).
+  A click throws two paints in stripes (beam: a wide band of parallel stripes toward the mouse; burst: outwards from
+  a ring around you) that flow for `flowTime`, drip slowly, blend where they cross, stop on rock, and bend around every
+  creature, leaving a bubble. The cosmic fish themselves are NOT drawn (`paint.showFish` false, no glows), so you
+  only see the hole they leave; lines that brush a creature turn green/yellow (diet colour rule). Same cooldowns as
+  sonar; each brushed creature counts as one scan per throw. Note: while a throw is still flowing (~2.4 s) the
+  bubbles follow the fish - that's the godly sense's power, limited by cooldown and reach.
 - **Open water.** The ocean is mostly deep (`abyssDepth` 6500, ~70% deeper than 2000 m) with few rocks and rare,
   tall pillars. Keep it open; don't add clutter without asking.
 - **Growth drives everything — bigger means slower, heavier and more zoomed out.** `whale.size` goes from 1 to
