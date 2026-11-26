@@ -131,13 +131,13 @@ const CONFIG = {
 
   // Struggle: you may also attack prey 1 or 2 tiers above the top of your diet (tier = position in the
   // food chain). It takes `bites` x base bite to kill (Jaws upgrades shorten it) and every bite costs you
-  // `damage` x your max health. 1 tier up = a hard fight, 2 tiers up = brutal but doable.
+  // `damage` x your max health. 1 tier up = an easy fight, 2 up = fair, 3 up = hard.
   // Any tier above your diet can be fought - the higher it is, the more bites it takes and the more each bite
   // hurts: bites = baseBites + bitesPerTier x gap, damage per bite = damageBase x damageGrowth^(gap-1) (x max
   // health). Steep on purpose: small gaps are cheap, only really big fish hurt a lot.
   // 1 up ~4% of your health, 2 up ~12%, 3 up ~32%, 4 up ~80%, 5+ up is fatal without upgrades.
   struggle: { baseBites: 2, bitesPerTier: 2, damageBase: 0.01, damageGrowth: 2,
-              labels: ['', 'hard fight', 'brutal fight', 'deadly fight', 'suicidal fight'] },
+              labels: ['', 'easy fight', 'fair fight', 'hard fight', 'deadly fight', 'suicidal fight'] },
 
   // Dead fish: carcasses of random species drift down and settle on the seabed. You (and scavengers: octopus,
   // toothfish, sleeper sharks, crabs) can eat them regardless of tier - dead animals don't fight back.
