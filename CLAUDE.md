@@ -192,7 +192,7 @@ then open http://localhost:8123 (the `deep-echo` entry in `.claude/launch.json` 
 | `src/quests.js` | Quest generation, tracking, rewards, quest panel |
 | `src/kraken.js` | The Kraken: behaviour, scan cells, partial-reveal hologram |
 | `src/entities.js` | `SHAPES`, `Whale` (growth, upgrades), `Prey` (all species), `Pod` + `Orca`, `Ship` + `Harpoon` |
-| `src/audio.js` | Procedural WebAudio sounds (clicks, returning echoes, hurt, breath) |
+| `src/audio.js` | Procedural WebAudio sounds (clicks, echoes, hurt, harpoon, breath), volume channels + saved volumes |
 | `src/render.js` | Zoomed world drawing, darkness overlay, echoes, HUD, food chain panel, upgrade menu, overlays |
 | `src/main.js` | `Game` class: input, spawning/despawning around the whale, update loop, state machine |
 
@@ -201,7 +201,10 @@ then open http://localhost:8123 (the `deep-echo` entry in `.claude/launch.json` 
 - WASD/arrows swim, Shift sprint (burns more air + energy).
 - Left click / Space: narrow long-range sonar beam toward the mouse. Right click / E: short 360° burst.
 - U / Tab: evolve menu (spend upgrade points on stats). Quests are shown top right.
-  P / Esc: pause. M: mute.
+  P / Esc: pause, which also shows the sound menu (sliders for master, sonar, eating/breathing and damage/harpoons;
+  saved in `localStorage`, defaults in `CONFIG.audio`). M: mute.
+- Sounds route through channel gains in `Sfx` (`sonar`, `effects`, `danger`) into a master gain. Damage and harpoon
+  shots are deliberately soft, muffled thumps; harpoon shots get quieter the further away the ship is.
 - Air drains underwater, refills at the surface (spout effect). Out of air → health drains.
 - Energy drains over time (faster when bigger). Eating refills it. Out of energy → health drains.
 - **Food chain** (`CONFIG.species`): sardine, mackerel, squid, octopus, grouper, tuna, manta ray, swordfish,

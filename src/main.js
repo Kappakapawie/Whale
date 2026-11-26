@@ -6,6 +6,8 @@ class Game {
                    beamHeld: false, burstHeld: false, mx: 0, my: 0 };
     this.state = 'title';   // title | playing | paused | upgrades | dead | won
     this.menuRects = [];    // clickable rows of the upgrade menu (filled by the renderer)
+    this.soundRects = [];   // sliders + buttons of the pause/sound menu (filled by the renderer)
+    this.soundDrag = null;  // id of the volume slider being dragged
     try { this.best = +localStorage.getItem('deepecho.best') || 0; } catch (e) { this.best = 0; }
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -466,7 +468,7 @@ class Game {
       if (keyMap[e.code]) { this.input[keyMap[e.code]] = true; e.preventDefault(); }
       if (e.code === 'Space') { this.input.beamHeld = true; e.preventDefault(); }
       if (e.code === 'KeyE') this.input.burstHeld = true;
-      if (e.code === 'KeyM') this.sfx.muted = !this.sfx.muted;
+      if (e.code === 'KeyM') this.sfx.toggleMute();
       if (e.code === 'Enter' && this.state === 'title') this.state = 'playing';
       if (e.code === 'KeyR' && (this.state === 'dead' || this.state === 'won')) { this.reset(); this.state = 'playing'; }
       if (e.code === 'KeyC' && this.state === 'won') this.state = 'playing';
@@ -488,7 +490,10 @@ class Game {
     window.addEventListener('blur', () => {
       for (const k of ['left', 'right', 'up', 'down', 'sprint', 'beamHeld', 'burstHeld']) this.input[k] = false;
     });
-    this.canvas.addEventListener('mousemove', e => { this.input.mx = e.clientX; this.input.my = e.clientY; });
+    this.canvas.addEventListener('mousemove', e => {
+      this.input.mx = e.clientX; this.input.my = e.clientY;
+      if (this.soundDrag) this.dragSlider(e.clientX);
+    });
     this.canvas.addEventListener('contextmenu', e => e.preventDefault());
     this.canvas.addEventListener('mousedown', e => {
       this.sfx.ensure();
@@ -496,14 +501,34 @@ class Game {
       if (this.state === 'title') { this.state = 'playing'; return; }
       if (this.state === 'dead') { this.reset(); this.state = 'playing'; return; }
       if (this.state === 'upgrades') { this.clickMenu(e.clientX, e.clientY); return; }
+      if (this.state === 'paused') { if (e.button === 0) this.clickSoundMenu(e.clientX, e.clientY); return; }
       if (this.state !== 'playing') return;
       if (e.button === 0) this.input.beamHeld = true;
       if (e.button === 2) this.input.burstHeld = true;
     });
     window.addEventListener('mouseup', e => {
+      if (e.button === 0 && this.soundDrag) { // preview the new level with a sound from that channel
+        const id = this.soundDrag; this.soundDrag = null;
+        if (id === 'effects') this.sfx.chomp(); else if (id === 'danger') this.sfx.hurt(); else this.sfx.click(true);
+      }
       if (e.button === 0) this.input.beamHeld = false;
       if (e.button === 2) this.input.burstHeld = false;
     });
+  }
+
+  clickSoundMenu(x, y) {
+    for (const r of this.soundRects) {
+      if (x < r.x || x > r.x + r.w || y < r.y || y > r.y + r.h) continue;
+      if (r.slider) { this.soundDrag = r.slider; this.dragSlider(x); }
+      else if (r.action === 'mute') this.sfx.toggleMute();
+      else if (r.action === 'continue') this.state = 'playing';
+      return;
+    }
+  }
+
+  dragSlider(x) {
+    const r = this.soundRects.find(s => s.slider === this.soundDrag);
+    if (r) this.sfx.setVolume(r.slider, (x - r.sx) / r.sw);
   }
 
   clickMenu(x, y) {

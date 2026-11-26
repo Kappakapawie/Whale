@@ -290,4 +290,15 @@ const CONFIG = {
     forageRadius: 90, forageSpeed: 0.55, foragePause: [0.4, 1.4], restSpeed: 0.1,
     millRadius: 160, millSpin: 0.5, wobble: 18,
   },
+
+  // Sound menu (pause screen). Volumes 0..1, saved per browser under storageKey.
+  audio: {
+    storageKey: 'deepEcho.volume',
+    defaults: { master: 0.8, sonar: 0.8, effects: 0.8, danger: 0.7 },
+    channels: [
+      { id: 'sonar', name: 'Sonar clicks & echoes' },
+      { id: 'effects', name: 'Eating & breathing' },
+      { id: 'danger', name: 'Damage & harpoons' },
+    ],
+  },
 };

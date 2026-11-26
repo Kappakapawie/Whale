@@ -171,6 +171,9 @@ function updateCursor(game) {
     if (game.state === 'upgrades') {
       const { mx, my } = game.input;
       if (game.menuRects.some(r => mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h)) cursor = 'pointer';
+    } else if (game.state === 'paused') {
+      const { mx, my } = game.input;
+      if (game.soundDrag || game.soundRects.some(r => mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h)) cursor = 'pointer';
     } else if (game.state === 'title' || game.state === 'dead') cursor = 'pointer'; // click anywhere to start
   }
   if (game.canvas.style.cursor !== cursor) game.canvas.style.cursor = cursor;
@@ -453,12 +456,12 @@ function drawHUD(ctx, game) {
     '',
     'WASD / Arrows — swim      Shift — sprint (burns air + energy)',
     'Left click / Space — sonar beam toward mouse      Right click / E — 360° burst',
-    'U — evolve (spend upgrade points)      M — mute      P — pause      Quests (top right) give free upgrades',
+    'U — evolve (spend upgrade points)      M — mute      P — pause + sound settings      Quests (top right) give free upgrades',
     'Surface for air. Orcas hear your clicks. Once you are big, whalers hunt the surface.',
     '',
     'Click or press Enter to dive',
   ]);
-  else if (game.state === 'paused') overlay(ctx, W, H, 'PAUSED', ['Press P to continue']);
+  else if (game.state === 'paused') drawSoundMenu(ctx, game);
   else if (game.state === 'upgrades') drawUpgradeMenu(ctx, game);
   else if (game.state === 'dead') overlay(ctx, W, H, w.lastDamage || 'You died.', [
     `Score ${w.score}   ·   Eaten ${w.eaten}   ·   Size ${w.size.toFixed(2)}   ·   Survived ${Math.floor(w.timeAlive)}s`,
@@ -586,6 +589,49 @@ function drawUpgradeMenu(ctx, game) {
     ctx.textAlign = 'left';
     game.menuRects.push({ x, y, w: rw, h: rh, upgrade: it });
   });
+}
+
+// Pause screen with the sound menu: a slider per channel (drag or click), a mute toggle and Continue.
+function drawSoundMenu(ctx, game) {
+  const W = game.cw, H = game.ch, sfx = game.sfx;
+  const rows = [{ id: 'master', name: 'Master volume' }, ...CONFIG.audio.channels];
+  ctx.fillStyle = 'rgba(0,6,16,0.6)'; ctx.fillRect(0, 0, W, H);
+  const pw = Math.min(460, W - 32), rowH = 46, ph = 120 + rows.length * rowH + 60;
+  const px = (W - pw) / 2, py = Math.max(10, (H - ph) / 2);
+  ctx.fillStyle = 'rgba(8,24,40,0.95)'; ctx.fillRect(px, py, pw, ph);
+  ctx.strokeStyle = 'rgba(120,200,240,0.4)'; ctx.lineWidth = 1; ctx.strokeRect(px, py, pw, ph);
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+  ctx.fillStyle = '#bfefff'; ctx.font = 'bold 32px system-ui'; ctx.fillText('PAUSED', W / 2, py + 34);
+  ctx.font = '13px system-ui'; ctx.fillStyle = '#8fa6b8'; ctx.fillText('P / Esc to continue  ·  M to mute', W / 2, py + 64);
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 13px system-ui'; ctx.fillStyle = '#9fb8cc'; ctx.fillText('SOUND', px + 20, py + 94);
+
+  game.soundRects = [];
+  const mx = game.input.mx, my = game.input.my;
+  rows.forEach((r, i) => {
+    const y = py + 116 + i * rowH, v = sfx.volume[r.id];
+    const sx = px + 20, sw = pw - 110, barY = y + 22;
+    ctx.font = '13px system-ui'; ctx.fillStyle = sfx.muted ? '#6f8294' : '#e8f4ff'; ctx.fillText(r.name, sx, y + 6);
+    ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(sx, barY - 3, sw, 6);
+    ctx.fillStyle = sfx.muted ? '#4f6070' : '#4fb8e0'; ctx.fillRect(sx, barY - 3, sw * v, 6);
+    const hover = game.soundDrag === r.id || (mx >= sx - 8 && mx <= sx + sw + 8 && my >= barY - 12 && my <= barY + 12);
+    ctx.fillStyle = hover ? '#ffffff' : '#bfefff';
+    ctx.beginPath(); ctx.arc(sx + sw * v, barY, hover ? 8 : 7, 0, TAU); ctx.fill();
+    ctx.textAlign = 'right'; ctx.font = 'bold 13px system-ui'; ctx.fillStyle = '#ffd166';
+    ctx.fillText(`${Math.round(v * 100)}%`, px + pw - 20, barY);
+    ctx.textAlign = 'left';
+    game.soundRects.push({ x: sx - 8, y: barY - 12, w: sw + 16, h: 24, slider: r.id, sx, sw });
+  });
+
+  const by = py + ph - 52, bw = (pw - 50) / 2;
+  [{ label: sfx.muted ? 'Unmute' : 'Mute', action: 'mute', x: px + 20 }, { label: 'Continue', action: 'continue', x: px + 30 + bw }]
+    .forEach(b => {
+      const hover = mx >= b.x && mx <= b.x + bw && my >= by && my <= by + 34;
+      ctx.fillStyle = hover ? 'rgba(80,160,210,0.35)' : 'rgba(255,255,255,0.07)'; ctx.fillRect(b.x, by, bw, 34);
+      ctx.textAlign = 'center'; ctx.font = 'bold 14px system-ui'; ctx.fillStyle = '#e8f4ff';
+      ctx.fillText(b.label, b.x + bw / 2, by + 17); ctx.textAlign = 'left';
+      game.soundRects.push({ x: b.x, y: by, w: bw, h: 34, action: b.action });
+    });
 }
 
 function overlay(ctx, W, H, title, lines) {

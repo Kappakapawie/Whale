@@ -676,7 +676,7 @@ class Ship {
       const t = dist(sx, sy, w.x, w.y) / v;
       const tx = w.x + w.vx * t, ty = w.y + w.vy * t;
       game.harpoons.push(new Harpoon(sx, sy, Math.atan2(ty - sy, tx - sx), v));
-      game.sfx.thud();
+      game.sfx.harpoon(1 - Math.abs(w.x - this.x) / range);
       this.cool = lerp(c.harpoonCooldown, c.minHarpoonCooldown, heat);
     } else if (w.alive && this.cool <= 0 && w.y < c.surfaceShotDepth * w.size &&
                Math.abs(w.x - this.x) < lerp(c.lobRange, c.maxLobRange, heat) * Math.max(1, w.size * 0.6)) {
@@ -691,7 +691,8 @@ class Ship {
       }
       if (ang !== null) {
         const h = new Harpoon(sx, sy, ang, v); h.life = c.lobLife;
-        game.harpoons.push(h); game.sfx.thud();
+        game.harpoons.push(h);
+        game.sfx.harpoon(1 - Math.abs(w.x - this.x) / (lerp(c.lobRange, c.maxLobRange, heat) * Math.max(1, w.size * 0.6)));
         this.cool = lerp(c.harpoonCooldown, c.minHarpoonCooldown, heat);
       }
     }
