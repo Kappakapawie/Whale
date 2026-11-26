@@ -74,26 +74,27 @@ const CONFIG = {
   // levels ('bonus levels', up to quests.bonusOverMax beyond max). `cost` is unused now.
   // `mult` multiplies the stat per level, `add` adds per level. `stat` may be a list.
   upgrades: [
-    { id: 'lungs',      name: 'Lungs',           desc: '+20% max air',          stat: 'maxOxygen', mult: 1.2, max: 5, cost: 5 },
-    { id: 'efflungs',   name: 'Efficient Lungs', desc: '-12% air use',          stat: ['oxygenDrain', 'sprintOxygenDrain'], mult: 0.88, max: 5, cost: 6 },
-    { id: 'breath',     name: 'Deep Breath',     desc: '+25% air refill speed', stat: 'oxygenRefill', mult: 1.25, max: 5, cost: 4 },
-    { id: 'fluke',      name: 'Fluke Power',     desc: '+10% swim speed',       stat: ['maxSpeed', 'accel'], mult: 1.1, max: 5, cost: 8 },
-    { id: 'sprint',     name: 'Sprint Muscles',  desc: '+0.12 sprint boost',    stat: 'sprintMultiplier', add: 0.12, max: 5, cost: 6 },
-    { id: 'agility',    name: 'Agility',         desc: '+20% turn speed',       stat: 'turnRate', mult: 1.2, max: 5, cost: 4 },
-    { id: 'blubber',    name: 'Blubber',         desc: '+20% max health',       stat: 'maxHealth', mult: 1.2, max: 5, cost: 6 },
-    { id: 'healing',    name: 'Healing',         desc: '+40% health regen',     stat: 'regenRate', mult: 1.4, max: 5, cost: 5 },
-    { id: 'skin',       name: 'Thick Skin',      desc: '-10% damage taken',     stat: 'damageTaken', mult: 0.9, max: 5, cost: 8 },
-    { id: 'stomach',    name: 'Big Stomach',     desc: '+20% max energy',       stat: 'maxEnergy', mult: 1.2, max: 5, cost: 5 },
-    { id: 'metabolism', name: 'Slow Metabolism', desc: '-12% energy use',       stat: ['energyDrain', 'sprintEnergyDrain'], mult: 0.88, max: 5, cost: 6 },
-    { id: 'jaws',       name: 'Jaws',            desc: '+25% bite damage',      stat: 'bite', mult: 1.25, max: 5, cost: 10 },
-    { id: 'reach',      name: 'Sonar Reach',     desc: '+15% sonar range',      stat: 'sonarRangeMult', mult: 1.15, max: 5, cost: 7 },
-    { id: 'wide',       name: 'Wide Beam',       desc: '+15% beam width',       stat: 'sonarConeMult', mult: 1.15, max: 5, cost: 5 },
-    { id: 'rapid',      name: 'Rapid Clicks',    desc: '-12% sonar cooldown',   stat: 'sonarCooldownMult', mult: 0.88, max: 5, cost: 6 },
-    { id: 'quiet',      name: 'Quiet Clicks',    desc: '-15% loudness; prey in the dark may miss you', stat: 'sonarLoudnessMult', mult: 0.85, max: 5, cost: 7 },
-    { id: 'echolock',   name: 'Echo Lock',       desc: 'Beam a fully learned creature twice: its model follows it (+1.5 s)', stat: 'lockTime', add: 1.5, max: 5, cost: 6 },
-    { id: 'surface',    name: 'Surface Agility', desc: '+15% speed while at the surface', stat: 'surfaceSpeedMult', mult: 1.15, max: 5, cost: 5 },
-    { id: 'pressure',   name: 'Pressure Tolerance', desc: '+12% max dive depth', stat: 'maxDepth', mult: 1.12, max: 5, cost: 6 },
-    { id: 'memory',     name: 'Echo Memory',     desc: '+20% echo duration',    stat: 'echoLifeMult', mult: 1.2, max: 5, cost: 4 },
+    // Few but strong levels (max 3): points are scarce, so every level should be felt.
+    { id: 'lungs',      name: 'Lungs',           desc: '+40% max air',          stat: 'maxOxygen', mult: 1.4, max: 3, cost: 5 },
+    { id: 'efflungs',   name: 'Efficient Lungs', desc: '-24% air use',          stat: ['oxygenDrain', 'sprintOxygenDrain'], mult: 0.76, max: 3, cost: 6 },
+    { id: 'breath',     name: 'Deep Breath',     desc: '+50% air refill speed', stat: 'oxygenRefill', mult: 1.5, max: 3, cost: 4 },
+    { id: 'fluke',      name: 'Fluke Power',     desc: '+20% swim speed',       stat: ['maxSpeed', 'accel'], mult: 1.2, max: 3, cost: 8 },
+    { id: 'sprint',     name: 'Sprint Muscles',  desc: '+0.24 sprint boost',    stat: 'sprintMultiplier', add: 0.24, max: 3, cost: 6 },
+    { id: 'agility',    name: 'Agility',         desc: '+40% turn speed',       stat: 'turnRate', mult: 1.4, max: 3, cost: 4 },
+    { id: 'blubber',    name: 'Blubber',         desc: '+40% max health',       stat: 'maxHealth', mult: 1.4, max: 3, cost: 6 },
+    { id: 'healing',    name: 'Healing',         desc: '+80% health regen',     stat: 'regenRate', mult: 1.8, max: 3, cost: 5 },
+    { id: 'skin',       name: 'Thick Skin',      desc: '-20% damage taken',     stat: 'damageTaken', mult: 0.8, max: 3, cost: 8 },
+    { id: 'stomach',    name: 'Big Stomach',     desc: '+40% max energy',       stat: 'maxEnergy', mult: 1.4, max: 3, cost: 5 },
+    { id: 'metabolism', name: 'Slow Metabolism', desc: '-24% energy use',       stat: ['energyDrain', 'sprintEnergyDrain'], mult: 0.76, max: 3, cost: 6 },
+    { id: 'jaws',       name: 'Jaws',            desc: '+50% bite damage',      stat: 'bite', mult: 1.5, max: 3, cost: 10 },
+    { id: 'reach',      name: 'Sonar Reach',     desc: '+30% sonar range',      stat: 'sonarRangeMult', mult: 1.3, max: 3, cost: 7 },
+    { id: 'wide',       name: 'Wide Beam',       desc: '+30% beam width',       stat: 'sonarConeMult', mult: 1.3, max: 3, cost: 5 },
+    { id: 'rapid',      name: 'Rapid Clicks',    desc: '-24% sonar cooldown',   stat: 'sonarCooldownMult', mult: 0.76, max: 3, cost: 6 },
+    { id: 'quiet',      name: 'Quiet Clicks',    desc: '-30% loudness; prey in the dark may miss you', stat: 'sonarLoudnessMult', mult: 0.7, max: 3, cost: 7 },
+    { id: 'echolock',   name: 'Echo Lock',       desc: 'Beam a fully learned creature twice: its model follows it (+3 s)', stat: 'lockTime', add: 3, max: 3, cost: 6 },
+    { id: 'surface',    name: 'Surface Agility', desc: '+30% speed while at the surface', stat: 'surfaceSpeedMult', mult: 1.3, max: 3, cost: 5 },
+    { id: 'pressure',   name: 'Pressure Tolerance', desc: '+24% max dive depth', stat: 'maxDepth', mult: 1.24, max: 3, cost: 6 },
+    { id: 'memory',     name: 'Echo Memory',     desc: '+40% echo duration',    stat: 'echoLifeMult', mult: 1.4, max: 3, cost: 4 },
   ],
 
   sonar: {
@@ -125,16 +126,17 @@ const CONFIG = {
   // Quests: always some active (at least 5 in the midgame). Rewards are free stat levels or a point.
   quests: {
     active: { early: 3, mid: 5, late: 5 }, midSize: 1.3, lateSize: 2.6,
-    newQuestDelay: 6, pointChance: 0.2, bonusOverMax: 2, travelKm: [2, 5],
+    newQuestDelay: 6, pointChance: 0.2, bonusOverMax: 1, travelKm: [2, 5],
   },
 
   // Struggle: you may also attack prey 1 or 2 tiers above the top of your diet (tier = position in the
   // food chain). It takes `bites` x base bite to kill (Jaws upgrades shorten it) and every bite costs you
   // `damage` x your max health. 1 tier up = a hard fight, 2 tiers up = brutal but doable.
   // Any tier above your diet can be fought - the higher it is, the more bites it takes and the more each bite
-  // hurts: bites = baseBites + bitesPerTier x gap, damage per bite = damagePerTier x gap (x max health).
-  // 1 up ~14% of your health, 2 up ~42%, 3 up ~84%, 4+ up is usually fatal without upgrades.
-  struggle: { baseBites: 2, bitesPerTier: 2, damagePerTier: 0.035,
+  // hurts: bites = baseBites + bitesPerTier x gap, damage per bite = damageBase x damageGrowth^(gap-1) (x max
+  // health). Steep on purpose: small gaps are cheap, only really big fish hurt a lot.
+  // 1 up ~4% of your health, 2 up ~12%, 3 up ~32%, 4 up ~80%, 5+ up is fatal without upgrades.
+  struggle: { baseBites: 2, bitesPerTier: 2, damageBase: 0.01, damageGrowth: 2,
               labels: ['', 'hard fight', 'brutal fight', 'deadly fight', 'suicidal fight'] },
 
   // Dead fish: carcasses of random species drift down and settle on the seabed. You (and scavengers: octopus,
