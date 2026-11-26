@@ -295,7 +295,11 @@ const CONFIG = {
 
   // Testing only. noDeath: dying heals you and puts you back at the surface above where you died
   // (respawnInvuln s of invulnerability). Set noDeath to false for the real game.
-  debug: { noDeath: true, respawnInvuln: 3 },
+  // tools: show the TESTING block in the pause menu (Unstuck + start from one of the stage presets).
+  // stages: how far through the game each preset is (0 = new game, 1 = everything): size, diet, eaten counts,
+  // upgrade levels, species scans and kraken scan all use this fraction. Stage 5 stops at the oarfish, so the
+  // giant squid is still the next fight.
+  debug: { noDeath: true, respawnInvuln: 3, tools: true, stages: [0, 0.4, 0.6, 0.8, 1], unstuckInvuln: 2 },
 
   // Sound menu (pause screen). Volumes 0..1, saved per browser under storageKey.
   audio: {

@@ -596,7 +596,8 @@ function drawSoundMenu(ctx, game) {
   const W = game.cw, H = game.ch, sfx = game.sfx;
   const rows = [{ id: 'master', name: 'Master volume' }, ...CONFIG.audio.channels];
   ctx.fillStyle = 'rgba(0,6,16,0.6)'; ctx.fillRect(0, 0, W, H);
-  const pw = Math.min(460, W - 32), rowH = 46, ph = 120 + rows.length * rowH + 60;
+  const tools = CONFIG.debug.tools, toolsH = tools ? 118 : 0;
+  const pw = Math.min(460, W - 32), rowH = 46, ph = 120 + rows.length * rowH + toolsH + 60;
   const px = (W - pw) / 2, py = Math.max(10, (H - ph) / 2);
   ctx.fillStyle = 'rgba(8,24,40,0.95)'; ctx.fillRect(px, py, pw, ph);
   ctx.strokeStyle = 'rgba(120,200,240,0.4)'; ctx.lineWidth = 1; ctx.strokeRect(px, py, pw, ph);
@@ -622,6 +623,26 @@ function drawSoundMenu(ctx, game) {
     ctx.textAlign = 'left';
     game.soundRects.push({ x: sx - 8, y: barY - 12, w: sw + 16, h: 24, slider: r.id, sx, sw });
   });
+
+  // TESTING block (prototype only): Unstuck + start from one of five stage presets ("saves")
+  const button = (x, y, w, h, label, rect, sub) => {
+    const hover = mx >= x && mx <= x + w && my >= y && my <= y + h;
+    ctx.fillStyle = hover ? 'rgba(255,209,102,0.25)' : 'rgba(255,255,255,0.07)'; ctx.fillRect(x, y, w, h);
+    ctx.textAlign = 'center'; ctx.fillStyle = '#ffe9b0';
+    ctx.font = 'bold 13px system-ui'; ctx.fillText(label, x + w / 2, sub ? y + h / 2 - 7 : y + h / 2);
+    if (sub) { ctx.font = '11px system-ui'; ctx.fillStyle = '#c9b37a'; ctx.fillText(sub, x + w / 2, y + h / 2 + 9); }
+    ctx.textAlign = 'left';
+    game.soundRects.push({ x, y, w, h, ...rect });
+  };
+  if (tools) {
+    const ty = py + 116 + rows.length * rowH;
+    ctx.font = 'bold 13px system-ui'; ctx.fillStyle = '#c9b37a'; ctx.fillText('TESTING', px + 20, ty + 4);
+    button(px + 20, ty + 16, pw - 40, 30, 'Unstuck: move to open water', { action: 'unstuck' });
+    ctx.font = '12px system-ui'; ctx.fillStyle = '#8fa6b8'; ctx.fillText('Start from save:', px + 20, ty + 60);
+    const n = CONFIG.debug.stages.length, gap = 8, sw = (pw - 40 - gap * (n - 1)) / n;
+    CONFIG.debug.stages.forEach((f, i) => button(px + 20 + i * (sw + gap), ty + 70, sw, 36, `${i + 1}`,
+      { stage: i + 1 }, i === 0 ? 'new game' : `${Math.round(f * 100)}%`));
+  }
 
   const by = py + ph - 52, bw = (pw - 50) / 2;
   [{ label: sfx.muted ? 'Unmute' : 'Mute', action: 'mute', x: px + 20 }, { label: 'Continue', action: 'continue', x: px + 30 + bw }]

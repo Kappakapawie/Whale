@@ -21,13 +21,14 @@ class Game {
     this.ch = this.canvas.height = window.innerHeight;
   }
 
-  reset() {
+  reset(stage = 1) {
     this.world = new World();
     this.whale = new Whale(0, 120);
     this.sonar = new Sonar();
+    this.kraken = null; this.krakenFound = false; this.krakenDone = false;
+    if (stage > 1) this.applyStage(stage);
     this.prey = []; this.groups = []; this.pods = []; this.orcas = [];
     this.ships = []; this.harpoons = []; this.particles = []; this.popups = [];
-    this.kraken = null; this.krakenFound = false; this.krakenDone = false;
     this.fauna = []; this.swimmers = []; this.wanted = 0; this.wantedT = 0; this.intelT = 0; this.carcasses = [];
     this.quests = new Quests(this);
     this.locks = new Map(); this.acquired = new Map(); // Echo Lock state
@@ -522,6 +523,8 @@ class Game {
       if (r.slider) { this.soundDrag = r.slider; this.dragSlider(x); }
       else if (r.action === 'mute') this.sfx.toggleMute();
       else if (r.action === 'continue') this.state = 'playing';
+      else if (r.action === 'unstuck') this.unstuck();
+      else if (r.stage) this.loadStage(r.stage);
       return;
     }
   }
@@ -725,6 +728,72 @@ class Game {
 
     if (!w.alive && CONFIG.debug.noDeath) this.respawnAtSurface();
     else if (!w.alive) { this.state = 'dead'; this.saveBest(); }
+  }
+
+  // ------------------------------------------------------------ testing tools (pause menu)
+  // Prototype "saves": stage 1 = new game ... stage 5 = everything up to the giant squid. One fraction f
+  // (CONFIG.debug.stages) drives size, diet, eaten counts, upgrade levels, species scans and kraken scan.
+  applyStage(stage) {
+    const w = this.whale, f = CONFIG.debug.stages[stage - 1], G = CONFIG.growth, list = CONFIG.species;
+    w.size = 1 + (G.maxSize - 1) * f;
+    w.mass = G.massForMax * f * f; // inverse of size = 1 + (max-1) * sqrt(mass / massForMax)
+    const top = Math.round(f * (list.length - 2)); // never past the oarfish: the giant squid stays the boss fight
+    w.diet = new Set(list.slice(0, top + 1).map(s => s.id));
+    w.eaten = 0;
+    list.forEach((sp, i) => {
+      if (i < top) { w.eatenBy[sp.id] = CONFIG.diet.unlockAfter; w.eaten += CONFIG.diet.unlockAfter; }
+      w.scans[sp.id] = Math.round(f * CONFIG.sonar.model.scansForFull);
+    });
+    w.scans.orca = Math.round(f * CONFIG.sonar.model.scansForFull);
+    // f of ALL upgrade levels, dealt out one level at a time across the upgrades (so 60% and 80% differ)
+    const U = CONFIG.upgrades;
+    let left = Math.round(f * U.reduce((a, u) => a + u.max, 0));
+    for (const u of U) w.levels[u.id] = 0;
+    while (left > 0) for (const u of U) if (left > 0 && w.levels[u.id] < u.max) { w.levels[u.id]++; left--; }
+    w.score = list.slice(0, top + 1).reduce((a, sp) => a + sp.ep * CONFIG.diet.unlockAfter, 0);
+    // kraken: reveal a matching share of its scan cells (complete at stage 5)
+    const K = CONFIG.kraken, keys = [];
+    for (let j = 0; j < SHAPES.krakenBody.length; j++) keys.push(`body:${j}`);
+    for (let a = 0; a < K.arms; a++) for (let s = 0; s < K.armSegments; s++) keys.push(`arm${a}:${s}`);
+    keys.sort(() => Math.random() - 0.5);
+    const want = f >= 1 ? Math.ceil(K.completeAt * keys.length) : Math.round(f * K.completeAt * keys.length);
+    w.krakenKnown = new Set(keys.slice(0, want));
+    this.krakenFound = want > 0; this.krakenDone = f >= 1;
+    w.recomputeStats();
+    const s = w.stats; w.health = s.maxHealth; w.oxygen = s.maxOxygen; w.energy = s.maxEnergy;
+    w.y = 40 * w.size; w.updatePoly();
+  }
+
+  loadStage(stage) {
+    this.reset(stage);
+    this.state = 'playing';
+    this.say(stage === 1 ? 'Save 1: new game' : `Save ${stage}: ${Math.round(CONFIG.debug.stages[stage - 1] * 100)}% through the game`, 4, '#ffd166');
+  }
+
+  // Move the whale to the nearest open water where its whole body fits, searching outward in rings.
+  unstuck() {
+    const w = this.whale, z = w.size, W = this.world;
+    W.ensureAround(w.x, this.despawnRadius());
+    const fits = (x, y) => {
+      if (y < 30 * z || W.floorAt(x) - y < 140 * z) return false;
+      for (let a = 0; a < 12; a++) { // body outline + a margin
+        if (W.blocked(x + Math.cos(a * TAU / 12) * 130 * z, y + Math.sin(a * TAU / 12) * 60 * z)) return false;
+      }
+      return !W.blocked(x, y);
+    };
+    for (let ring = 1; ring <= 40; ring++) {
+      const d = ring * 100 * z;
+      for (let k = 0; k < 16; k++) {
+        const x = w.x + rand(-d, d), y = w.y + rand(-d, d) * 0.6;
+        if (!fits(x, y)) continue;
+        w.x = x; w.y = y; w.vx = 0; w.vy = 0; w.invuln = CONFIG.debug.unstuckInvuln;
+        w.updatePoly(); this.fight = null; this.updateCamera(0, true);
+        this.state = 'playing'; this.say('Unstuck: moved to open water.', 3, '#ffd166');
+        return true;
+      }
+    }
+    this.say('Unstuck: no open water found nearby.', 3, '#ffd166');
+    return false;
   }
 
   // Test mode (CONFIG.debug.noDeath): instead of dying, the whale is healed and put back at the surface

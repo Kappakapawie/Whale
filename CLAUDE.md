@@ -223,6 +223,10 @@ then open http://localhost:8123 (the `deep-echo` entry in `.claude/launch.json` 
 - Upgrades are per run (lost on death).
 - **Test mode is ON** (`CONFIG.debug.noDeath`): instead of dying you're healed and put back at the surface above
   where you died (`Game.respawnAtSurface`), keeping your progress. Set it to `false` before a real release.
+- **Testing block in the pause menu** (`CONFIG.debug.tools`): *Unstuck* (`Game.unstuck`) moves the whale to the
+  nearest open water its body fits in. *Start from save 1-5* (`Game.loadStage` / `applyStage`) starts a fresh run at
+  a stage preset (`CONFIG.debug.stages`: 0, 40, 60, 80, 100 % through the game). One fraction drives size, diet
+  (save 5 stops at the oarfish), eaten counts, upgrade levels (that share of all levels), scans and the kraken scan.
 
 ## Roadmap / later
 
