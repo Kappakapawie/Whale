@@ -509,7 +509,10 @@ class Game {
         const prev = this.acquired.get(o), reveal = this.time + d / res.speed;
         if (prev !== undefined && this.time - prev < CONFIG.sonar.lockWindow) {
           if (!this.locks.has(o)) this.popup(o.x, o.y - 40 * o.scale, 'ECHO LOCK', '#bfffd0');
-          this.locks.set(o, { start: reveal, until: reveal + s.lockTime });
+          // re-locking a creature that is still locked continues the running lock seamlessly: no gap in which an
+          // old snapshot shows while the new sound travels
+          const cur = this.locks.get(o), running = cur && cur.start <= this.time && this.time <= cur.until;
+          this.locks.set(o, { start: running ? cur.start : reveal, until: Math.max(reveal + s.lockTime, running ? cur.until : 0) });
         }
         this.acquired.set(o, this.time);
       }
