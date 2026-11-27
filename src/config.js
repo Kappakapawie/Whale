@@ -136,7 +136,7 @@ const CONFIG = {
     // detail) until scansForFull. Below minScans no model is shown, only the raw echo faces.
     // full3d: from this familiarity the hologram is the creature's 3D model in the pose it had when the sound hit.
     // mythicMaxF / mythicMinError: mythical creatures never get past a vague, slightly wrong image (no lock, no path).
-    driftMax: 60, // s an echo/hologram keeps gliding along its heading at the hit: for its whole life (until refreshed)
+    driftMax: 4, // s an echo/hologram of a creature keeps gliding along its heading at the hit (until refreshed)
     model: { minScans: 5, scansForFull: 100, maxSizeError: 0.45, maxAngleError: 0.8, maxPosError: 0.35, full3d: 0.6,
              mythicMaxF: 0.45, mythicMinError: 0.5 },
     faceJoinDist: 60,   // max gap between neighbouring hits that still counts as the same face

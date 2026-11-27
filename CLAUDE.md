@@ -38,9 +38,8 @@ game reskinned, with its own food chain of cosmic fish ending in the Star Serpen
   is the creature's real 3D model (`drawCreature3D` with `holo`, a glowing wireframe mesh) frozen in the 3D pose it
   had when the sound hit (`pose` on the snapshot); echo-locked ones use the live pose. The model is a **snapshot** from when
   the sound hit (it fades like an echo) and never tracks the creature live — that would leak information. It does
-  keep gliding along the heading the creature had at the hit for its whole life (dead reckoning, `sonar.driftMax`;
-  the echo lines too), so it never freezes while waiting for the next click; re-beaming an echo-locked creature
-  continues the running lock without a gap; when a newer echo of that creature arrives the older lines give way.
+  keep gliding along the heading the creature had at the hit (dead reckoning, `sonar.driftMax` s; the echo lines
+  too), so it doesn't freeze until the next click; when a newer echo of that creature arrives the older lines give way.
   Scan % per species is shown in the food chain panel. Once a species is fully learned its hit lines are no longer
   drawn — only the model (`skipEcho` in `Game.fireSonar`).
 - **The Kraken is revealed piece by piece (different from fish).** `src/kraken.js`. One gigantic monster roams
