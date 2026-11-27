@@ -1013,7 +1013,12 @@ class Game {
     for (const p of this.prey) p.update(dt, this);
     this.updateEating();
     this.quests.update(dt);
-    for (const [o, L] of this.locks) if (o.dead || this.time > L.until) this.locks.delete(o);
+    for (const [o, L] of this.locks) if (o.dead || this.time > L.until) {
+      this.locks.delete(o);
+      // the lock ran out: everything you saw of it up to now is gone too (no stale snapshot reappearing)
+      this.sonar.echoes = this.sonar.echoes.filter(e => e.owner !== o || e.t > L.until);
+      this.sonar.models = this.sonar.models.filter(m => m.owner !== o || m.t > L.until);
+    }
 
     for (const pod of this.pods) pod.update(dt, this);
     for (const o of this.orcas) o.update(dt, this);

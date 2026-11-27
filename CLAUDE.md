@@ -51,7 +51,8 @@ game reskinned, with its own food chain of cosmic fish ending in the Star Serpen
 - **Echo Lock (upgrade `echolock`, stat `lockTime`).** Only for fully learned creatures: hit the same one with
   the BEAM twice within `sonar.lockWindow` and its model stops being a snapshot and follows the creature live
   (with path arrow and lock brackets) for `lockTime` seconds (`Game.locks`, `lockModels` in `drawModels`).
-  Without the upgrade or for unlearned species, models stay snapshots.
+  Without the upgrade or for unlearned species, models stay snapshots. When a lock runs out, every echo and hologram of that creature
+  from before the end is dropped, so no stale snapshot reappears - you see nothing until you click it again.
 - **Creatures commit to their moves.** Steering decisions are held for `creatures.reactionTime` (~1 s), so nothing
   reacts instantly, and a sonar hit locks the current plan for that long (`Creature.lockPlan`). For fully scanned
   species (100%), the sonar also reveals that committed path as a dotted arrow from the nose
