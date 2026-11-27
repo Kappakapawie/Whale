@@ -84,7 +84,7 @@ class Whale {
   canHunt(sp) { return true; }
   // Fight cost for a species `gap` tiers above the top of your diet (null if it is in your diet).
   struggleFor(sp) {
-    const gap = this.tierGap(sp), S = CONFIG.struggle;
+    const gap = sp.hunter ? sp.fightGap : this.tierGap(sp), S = CONFIG.struggle; // hunters: a fixed-size fight
     if (gap <= 0) return null;
     return { gap, bites: S.baseBites + S.bitesPerTier * gap, damage: S.damageBase * Math.pow(S.damageGrowth, gap - 1),
              label: S.labels[Math.min(gap, S.labels.length - 1)] };

@@ -143,8 +143,9 @@ function drawCreature3D(ctx, c, t, opts = {}) {
   if (!M) return false;
   const onScreen = 100 * c.scale / M3D_VIEW.px, MC = CONFIG.models3d;
   if (onScreen < MC.minPx) return false;
-  const v = anim3d(c, t);
+  const v = opts.frozen ? c.v3 : anim3d(c, t); // frozen: a sonar hologram keeps the pose it had when the sound hit
   if (opts.bellyUp) v.roll = Math.PI; // carcasses float belly up
+  const H = opts.holo; // hologram: [r,g,b] echo colour, drawn as a translucent glowing mesh
   const base = hexRgb(opts.color || '#888888'), belly = hexRgb(M.belly || opts.belly || mixHex(opts.color || '#888888', '#ffffff', 0.45));
   const RING = onScreen < MC.lowPx ? MC.lowRing : MC.ring, items = [];
   const flap = M.wave === 'flap' ? Math.sin(v.phase * 0.8) * (M.flapAmp || 0.4) * (1 + v.amp) : 0;
@@ -166,7 +167,7 @@ function drawCreature3D(ctx, c, t, opts = {}) {
       if (n[2] > 0.02) continue; // back face: the viewer looks along +z, so faces pointing +z are hidden
       const lit = 0.38 + 0.62 * Math.max(0, n[0] * M3D_LIGHT[0] + n[1] * M3D_LIGHT[1] + n[2] * M3D_LIGHT[2]);
       const col = (a.lower && d.lower) ? belly : base;
-      items.push({ z: (a.p[2] + b.p[2] + cc.p[2] + d.p[2]) / 4, pts: [a.p, b.p, cc.p, d.p], fill: shadeColor(col, lit * (M.shell && !a.lower ? 0.9 : 1)) });
+      items.push({ z: (a.p[2] + b.p[2] + cc.p[2] + d.p[2]) / 4, pts: [a.p, b.p, cc.p, d.p], lit, fill: shadeColor(col, lit * (M.shell && !a.lower ? 0.9 : 1)) });
     }
   }
   // fins (double sided plates)
@@ -182,7 +183,7 @@ function drawCreature3D(ctx, c, t, opts = {}) {
       const n = triNormal(pts[0], pts[1], pts[2]);
       const lit = 0.45 + 0.55 * Math.abs(n[0] * M3D_LIGHT[0] + n[1] * M3D_LIGHT[1] + n[2] * M3D_LIGHT[2]);
       const fc = F.red ? [200, 60, 60] : base;
-      items.push({ z: pts.reduce((s, p) => s + p[2], 0) / pts.length - 0.01, pts, fill: shadeColor(fc, lit * 0.85) });
+      items.push({ z: pts.reduce((s, p) => s + p[2], 0) / pts.length - 0.01, pts, lit, fill: shadeColor(fc, lit * 0.85) });
     }
   }
   // trailing strands (arms, tentacles, legs, lures)
@@ -203,19 +204,24 @@ function drawCreature3D(ctx, c, t, opts = {}) {
   }
   items.sort((p, q) => q.z - p.z); // far (large z after our winding) first
   ctx.save();
-  ctx.globalAlpha = (opts.alpha ?? M.alpha ?? 1);
+  ctx.globalAlpha = H ? 1 : (opts.alpha ?? M.alpha ?? 1);
   ctx.lineJoin = 'round';
   for (const s of strands) {
-    ctx.strokeStyle = shadeColor(base, 0.75); ctx.lineWidth = s.w * c.scale; ctx.lineCap = 'round';
+    ctx.strokeStyle = H ? `rgba(${H[0]},${H[1]},${H[2]},${(opts.holoAlpha * 0.6).toFixed(3)})` : shadeColor(base, 0.75);
+    ctx.lineWidth = (H ? 1.2 * M3D_VIEW.px : s.w * c.scale); ctx.lineCap = 'round';
     ctx.beginPath(); s.pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke();
   }
   for (const it of items) {
-    ctx.fillStyle = it.fill; ctx.strokeStyle = it.fill; ctx.lineWidth = 0.6 * c.scale; // the thin stroke hides seams
+    if (H) { // hologram: faint lit faces + bright mesh lines
+      const k = it.lit || 0.7;
+      ctx.fillStyle = `rgba(${H[0]},${H[1]},${H[2]},${(opts.holoAlpha * 0.16 * k).toFixed(3)})`;
+      ctx.strokeStyle = `rgba(${H[0]},${H[1]},${H[2]},${(opts.holoAlpha * 0.5 * k).toFixed(3)})`; ctx.lineWidth = 0.8 * M3D_VIEW.px;
+    } else { ctx.fillStyle = it.fill; ctx.strokeStyle = it.fill; ctx.lineWidth = 0.6 * c.scale; } // the thin stroke hides seams
     ctx.beginPath(); it.pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath();
     ctx.fill(); ctx.stroke();
   }
   // eye on the side facing the viewer (local -z faces the viewer when yaw = 0, +z when yaw = pi)
-  if (M.eye && Math.abs(Math.cos(v.yaw)) > 0.15) {
+  if (M.eye && !H && Math.abs(Math.cos(v.yaw)) > 0.15) {
     const rz = eyeZ(M, M.eye[0]) * 0.9, side = Math.cos(v.yaw) >= 0 ? -1 : 1;
     const e = m3dTransform(c, v, M, M.eye[0], M.eye[1], rz * side);
     ctx.fillStyle = '#0c0e10'; ctx.beginPath(); ctx.arc(e[0], e[1], Math.max(0.8, 1.6 * c.scale * (M.flat ? 0.8 : 1)), 0, TAU); ctx.fill();

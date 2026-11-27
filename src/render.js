@@ -549,6 +549,17 @@ function drawModels(ctx, game, px) {
     const c = S.colorCode ? S.colors[m.kind] : S.colors.terrain;
     const col = (al) => `rgba(${c[0]},${c[1]},${c[2]},${Math.min(1, al).toFixed(3)})`;
     if (m.kraken) { drawKrakenModel(ctx, m, col, Math.pow(1 - age, 1.2) * 0.9, px); continue; }
+    // well-known creatures: the hologram is their 3D model, in the pose they had when the sound hit (live when locked)
+    const pose = m.lock ? m.owner.v3 : m.pose;
+    if (CONFIG.models3d.enabled && pose && m.f >= S.model.full3d && MODELS3D[m.shape]) {
+      const ghost = { x: m.x, y: m.y, angle: m.angle, scale: m.scale, shapeName: m.shape, vx: 0, vy: 0, v3: { ...pose, t } };
+      const ha = a * (0.45 + 0.55 * (m.f - S.model.full3d) / (1 - S.model.full3d));
+      if (drawCreature3D(ctx, ghost, t, { frozen: true, holo: c, holoAlpha: ha })) {
+        if (m.path) drawPath(ctx, m.path, col, a, px);
+        if (m.lock) drawLockReticle(ctx, m.x, m.y, 60 * m.scale + 20 * px, col(a), px);
+        continue;
+      }
+    }
     const flip = Math.cos(m.angle) < 0 ? -1 : 1;
     ctx.save();
     ctx.translate(m.x, m.y); ctx.rotate(m.angle); ctx.scale(m.scale, m.scale * flip);

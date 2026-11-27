@@ -163,6 +163,18 @@ class Game {
     }
 
     for (let i = 0; !this.cosmic && this.pods.length < P.pods && i < 3; i++) this.spawnPod(minD);
+    // hunters: predators that come after a developed whale, more of them the further you are
+    const HU = CONFIG.hunters, ramp = clamp((this.progress() - HU.minProgress) / (1 - HU.minProgress), 0, 1);
+    if (!this.cosmic && ramp > 0) {
+      for (const sp of HU.list) {
+        const want = Math.round(sp.count * ramp + 0.49);
+        let n = this.prey.filter(p => p.sp === sp).length;
+        for (let tries = 0; n < want && tries < 3; tries++) {
+          const q = this.spawnPoint(sp, minD);
+          if (q) { this.prey.push(new Prey(sp, q.x, q.y)); n++; }
+        }
+      }
+    }
     this.manageKraken();
     this.manageFauna(minD);
     // dead fish drifting down (random species up to a few tiers above your diet)
@@ -418,6 +430,7 @@ class Game {
   }
 
   speciesKey(o) { return o instanceof Prey ? o.sp.id : o instanceof Fauna ? 'f:' + o.def.id : o instanceof Swimmer ? 'human' : 'orca'; }
+  isMythic(o) { return o instanceof Fauna && !!o.def.mythic; }
   isCreature(o) { return o instanceof Prey || o instanceof Orca || o instanceof Fauna || o instanceof Swimmer; }
   creatureName(o) { return o instanceof Prey ? o.sp.name : o instanceof Fauna ? o.def.name : o instanceof Swimmer ? 'Human' : 'Orca'; }
 
@@ -439,7 +452,7 @@ class Game {
     const res = this.sonar.emit(type, h.x, h.y, aim, this.allSolids(), this.time, {
       classify: solid => this.echoClass(solid),
       skipEcho: solid => { const o = solid.owner; if (o instanceof Kraken) return this.krakenDone;
-                           return !!o && this.isCreature(o) &&
+                           return !!o && this.isCreature(o) && !this.isMythic(o) &&
                                    (w.scans[this.speciesKey(o)] || 0) >= CONFIG.sonar.model.scansForFull; },
       onRayHit: (solid, j) => { if (solid.owner instanceof Kraken) w.krakenKnown.add(Kraken.cellKey(solid, j)); },
       rangeMult: s.sonarRangeMult * w.size, coneMult: s.sonarConeMult, cdMult: s.sonarCooldownMult,
@@ -461,7 +474,7 @@ class Game {
       for (const [solid, d] of res.hitSolids) {
         const o = solid.owner;
         if (!this.isCreature(o)) continue;
-        if ((w.scans[this.speciesKey(o)] || 0) < CONFIG.sonar.model.scansForFull) continue;
+        if (this.isMythic(o) || (w.scans[this.speciesKey(o)] || 0) < CONFIG.sonar.model.scansForFull) continue; // mythical: never locked
         const prev = this.acquired.get(o), reveal = this.time + d / res.speed;
         if (prev !== undefined && this.time - prev < CONFIG.sonar.lockWindow) {
           if (!this.locks.has(o)) this.popup(o.x, o.y - 40 * o.scale, 'ECHO LOCK', '#bfffd0');
@@ -498,15 +511,16 @@ class Game {
     if (!owner || !this.isCreature(owner)) return;
     const M = CONFIG.sonar.model, w = this.whale;
     owner.lockPlan(CONFIG.creatures.reactionTime); // can't react to the click instantly
-    const id = this.speciesKey(owner);
+    const id = this.speciesKey(owner), mythic = this.isMythic(owner);
     const n = (w.scans[id] || 0) + 1;
     w.scans[id] = n;
-    if (n === M.scansForFull) {
+    if (n === M.scansForFull && !mythic) {
       const name = this.creatureName(owner);
       this.say(`Sonar image complete: ${name}`, 3, '#9fe8ff');
     }
     if (n < M.minScans) return;
-    const f = Math.min(1, n / M.scansForFull), err = 1 - f;
+    // mythical creatures can never be fully learned: their image stays vague and a bit wrong, however often you ping them
+    const f = Math.min(mythic ? M.mythicMaxF : 1, n / M.scansForFull), err = Math.max(1 - f, mythic ? M.mythicMinError : 0);
     const len = owner.length || 110 * owner.scale;
     this.sonar.models.push({
       owner, shape: owner.shapeName, kind: this.echoClass(owner.solid), f,
@@ -515,6 +529,7 @@ class Game {
       angle: owner.angle + rand(-1, 1) * err * M.maxAngleError,
       scale: owner.scale * (1 + rand(-1, 1) * err * M.maxSizeError),
       t: revealT, life: CONFIG.sonar.echoLife * lifeMult,
+      pose: owner.v3 ? { yaw: owner.v3.yaw, roll: owner.v3.roll, phase: owner.v3.phase, amp: owner.v3.amp } : null, // 3D pose at the hit
       // Fully scanned: the sonar also reveals the path it is committed to for the next second.
       path: f >= 1 ? owner.predictPath(Math.min(owner.planT, CONFIG.creatures.reactionTime)) : null,
     });

@@ -22,10 +22,10 @@ const CONFIG = {
   // one-per-28000 coasts even for a new whale).
   segments: {
     types: {
-      beach: { weight: [0.07, 0.015], width: [1600, 2400], depth: [200, 250] }, // ~80-100 m, beach on the horizon
-      shelf: { weight: [0.40, 0.07], width: [2000, 5000], depth: [375, 625] },   // ~150-250 m
-      open:  { weight: [0.35, 0.40], width: [2500, 6000], depth: [1500, 3750] }, // ~600-1500 m
-      deep:  { weight: [0.10, 0.50], width: [3500, 8000], depth: [5500, 6500] }, // ~2200-2600 m
+      beach: { weight: [0.07, 0.005], width: [1600, 2400], depth: [200, 250] }, // ~80-100 m, beach on the horizon
+      shelf: { weight: [0.40, 0.02], width: [2000, 5000], depth: [375, 625] },   // ~150-250 m
+      open:  { weight: [0.35, 0.15], width: [2500, 6000], depth: [1500, 3750] }, // ~600-1500 m
+      deep:  { weight: [0.10, 0.80], width: [3500, 8000], depth: [5500, 6500] }, // ~2200-2600 m
       trench: { weight: [0, 0.08], width: [4200, 5200], depth: [11100, 11400] }, // ~4500 m: the deepest point (ascension)
     },
     start: { type: 'shelf', halfWidth: 900, neighbour: 'open' },
@@ -125,7 +125,10 @@ const CONFIG = {
     // Sonar knowledge: every click that hits a creature counts as one scan of its species. With more scans,
     // a 3D hologram model is drawn over the echo, getting more accurate (size, orientation, position,
     // detail) until scansForFull. Below minScans no model is shown, only the raw echo faces.
-    model: { minScans: 5, scansForFull: 100, maxSizeError: 0.45, maxAngleError: 0.8, maxPosError: 0.35 },
+    // full3d: from this familiarity the hologram is the creature's 3D model in the pose it had when the sound hit.
+    // mythicMaxF / mythicMinError: mythical creatures never get past a vague, slightly wrong image (no lock, no path).
+    model: { minScans: 5, scansForFull: 100, maxSizeError: 0.45, maxAngleError: 0.8, maxPosError: 0.35, full3d: 0.6,
+             mythicMaxF: 0.45, mythicMinError: 0.5 },
     faceJoinDist: 60,   // max gap between neighbouring hits that still counts as the same face
     colorCode: true,    // color echoes by what they hit
     // Creature echoes/holograms are only ever green or yellow: green = in your diet (you can eat it),
@@ -244,6 +247,22 @@ const CONFIG = {
       glow: { c: [170, 140, 255], pts: [[46, -3], [30, 0], [10, 0], [-10, 0], [-30, 0]], r: 14, speed: 1.6 },
       hp: 260, final: true, attack: { damage: 16, cooldown: 1.0, range: 900, chaseSpeed: 55, chaseTime: 10, rest: 15 } },
   ],
+
+  // Hunters: predators that come after a developed whale (not part of the food chain). They appear once
+  // Game.progress() passes minProgress and grow more common up to full progress (count x ramp). They live in the
+  // deep, chase you (chaseSpeed stays below a full-grown whale's swim speed, so you can always get away) and give
+  // up after chaseTime. You can fight back: a hunter is a struggle fight `fightGap` tiers up, with extra `hp`.
+  hunters: {
+    minProgress: 0.4,
+    list: [
+      { id: 'abyssshark', name: 'Abyssal Shark', shape: 'shark', length: 560, color: '#363c44', minSize: 3, hunter: true, fightGap: 2, hp: 200,
+        mass: 140, ep: 80, energy: 180, depthMin: 2500, depthMax: 6800, count: 2, speed: 40, fleeSpeed: 60,
+        attack: { damage: 20, cooldown: 1.3, range: 1000, chaseSpeed: 62, chaseTime: 8, rest: 25 } },
+      { id: 'frilledhunter', name: 'Frilled Hunter', shape: 'serpent', length: 700, color: '#2a3638', minSize: 3, hunter: true, fightGap: 2, hp: 160,
+        mass: 120, ep: 70, energy: 150, depthMin: 3500, depthMax: 7200, count: 2, speed: 35, fleeSpeed: 55,
+        attack: { damage: 15, cooldown: 1.0, range: 800, chaseSpeed: 58, chaseTime: 7, rest: 20 } },
+    ],
+  },
 
   // The deepest point: rare 'trench' segments (CONFIG.segments) drop to ~4500 m - far below the normal ocean, so only
   // a full-grown whale with Pressure Tolerance upgrades reaches the bottom (none appear for a new whale).

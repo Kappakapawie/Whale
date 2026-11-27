@@ -34,7 +34,9 @@ game reskinned, with its own food chain of cosmic fish ending in the Star Serpen
 - **Sonar knowledge → 3D hologram.** Every click that hits a creature is one scan of its species (`whale.scans`).
   From `model.minScans` on, a hologram model is drawn over the echo (`drawModels` in render.js): a vague dashed
   blob at first, then an outline + cross-section ribs, and at `model.scansForFull` (100) an exact shaded 3D body.
-  Low familiarity means wrong size, angle and position (`maxSizeError` etc.). The model is a **snapshot** from when
+  Low familiarity means wrong size, angle and position (`maxSizeError` etc.). From `model.full3d` (0.6) the hologram
+  is the creature's real 3D model (`drawCreature3D` with `holo`, a glowing wireframe mesh) frozen in the 3D pose it
+  had when the sound hit (`pose` on the snapshot); echo-locked ones use the live pose. The model is a **snapshot** from when
   the sound hit (it fades like an echo) and never tracks the creature live — that would leak information.
   Scan % per species is shown in the food chain panel. Once a species is fully learned its hit lines are no longer
   drawn — only the model (`skipEcho` in `Game.fireSonar`).
@@ -66,14 +68,20 @@ game reskinned, with its own food chain of cosmic fish ending in the Star Serpen
   (~80-100 m plateau, beach on the horizon, swimmers), shelf (~150-250 m), open sea (~600-1500 m, ridges) and deep
   sea (~2200-2600 m, pillars, kraken). The map doesn't have to make geographic sense. Each new segment is rolled
   with weights that slide with `Game.progress()` (average of size and upgrade-level progress): a new whale finds
-  mostly shelf/open sea and a developed whale mostly open/deep sea; beaches are rare. Segments are decided once
+  mostly shelf/open sea and a developed whale is in deep sea most of the time (~75% at full progress); beaches are rare. Segments are decided once
   (`lookahead` beyond the loaded area) and then remembered, so the floor at x never changes afterwards and chunks
   rebuild identically. Code that probes far away (e.g. the kraken spawn) must use `World.isGenerated` so it
   doesn't lock in segments early. Between segments the seabed slopes inside the deeper one (flat tops stay flat).
   The start (x = 0) is always a small shelf with open sea right next to it on both sides.
 - **Mythical creatures** (`CONFIG.fauna` entries with `mythic: true`: sea serpent, leviathan, ghost jelly, lantern
   dragon, bone eel; shapes in fauna.js) live only in the deepest water (depthMin >= 4500 units). Not food, they
-  ignore you; seen by their glow and on sonar.
+  ignore you; seen by their glow and on sonar. They always stay mysterious: their sonar image never gets past
+  `model.mythicMaxF` (vague, at least `mythicMinError` wrong), never shows a path, can't be echo-locked and
+  never drops its echo lines (`Game.isMythic`).
+- **Hunters** (`CONFIG.hunters`): predators that come after a developed whale - Abyssal Shark and Frilled Hunter
+  (not food-chain species; `hunter: true`). They appear once `Game.progress()` passes `minProgress`, more of them
+  toward full progress, live in the deep, chase you below your swim speed and give up after `chaseTime`. You can
+  fight back: touching one is a struggle `fightGap` tiers up, with extra `hp`.
 - **The ascension** (`Game.updateAscension`, `CONFIG.ascension`): rare `trench` segments (~4500 m, no ridges; none for a new
   whale, ~1 per 70,000-110,000 units late) are the deepest point: a steep shaft only a full-grown whale with
   Pressure Tolerance upgrades can reach the bottom of (`world.depth` 12500 covers it). Within
