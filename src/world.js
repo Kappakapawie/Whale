@@ -74,7 +74,7 @@ class World {
     if (seg.type === 'beach') return seg.depth + 15 * Math.sin(x / 240 + p[1]); // flat sandy plateau
     const m = clamp((seg.depth - c.shelfDepth) / (c.abyssDepth - c.shelfDepth), 0, 1);
     let d = seg.depth;
-    if (seg.type !== 'shelf' && seg.type !== 'trench') { // (the trench floor stays the deepest point)
+    if (seg.type !== 'shelf' && seg.type !== 'trench' && seg.type !== 'pelagic') { // (trench = deepest point; open ocean stays flat)
       const ridge = Math.max(0, this.noise1(x, 1100, 2) - 0.65) / 0.35; // occasional undersea ridges
       d -= m * c.ridgeHeight * ridge * ridge * (3 - 2 * ridge);
     }
@@ -182,7 +182,7 @@ class World {
     }
     if (rng() < CONFIG.world.pillarChance) {
       const x = x0 + rng() * cw;
-      if (this.abyssness(x) > 0.8) {
+      if (this.abyssness(x) > 0.8 && this.segAt(x).type !== 'pelagic') { // no pillars in the open ocean
         const w = 200 + rng() * 250, base = this.deepestFloor(x, w * 0.7) + 40;
         const h = Math.min(1000 + rng() * 2200, base - 600); // pillar tops stay well below the surface
         if (h > 300) rocks.push(makeSolid('terrain', this.pillarPoly(x, base, h, w, rng)));

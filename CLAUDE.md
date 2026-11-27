@@ -74,8 +74,9 @@ game reskinned, with its own food chain of cosmic fish ending in the Star Serpen
   them so no thin gaps form. Creatures, pods and ships are kept at a steady number near the whale by
   `Game.managePopulation`, spawn out of sight, and are removed past `despawnRadius`.
 - **The map is stitched from segments** (`CONFIG.segments`, `World.extend`/`segProfile`/`floorRaw`): beach
-  (~80-100 m plateau, beach on the horizon, swimmers), shelf (~150-250 m), open sea (~600-1500 m, ridges) and deep
-  sea (~2200-2600 m, pillars, kraken). The map doesn't have to make geographic sense. Each new segment is rolled
+  (~80-100 m plateau, beach on the horizon, swimmers), shelf (~150-250 m), open sea (~600-1500 m, ridges), deep
+  sea (~2200-2600 m, pillars, kraken) and **open ocean** (`pelagic`, ~3800-4000 m, flat, no ridges or pillars: the
+  late game is mostly open ocean where you never hit bottom - ~75-89% from mid-game on). The map doesn't have to make geographic sense. Each new segment is rolled
   with weights that slide with `Game.progress()` (average of size and upgrade-level progress): a new whale finds
   mostly shelf/open sea and a developed whale is in deep sea most of the time (weights use progress^`progressCurve`,
   so the deep mix arrives early); beaches are rare. **There is no memory of old places:** segments are decided a

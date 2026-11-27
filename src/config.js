@@ -21,11 +21,14 @@ const CONFIG = {
   // Beaches are rare.
   segments: {
     types: {
-      beach: { weight: [0.07, 0.005], width: [1600, 2400], depth: [200, 250] }, // ~80-100 m, beach on the horizon
-      shelf: { weight: [0.40, 0.02], width: [2000, 5000], depth: [375, 625] },   // ~150-250 m
-      open:  { weight: [0.35, 0.15], width: [2500, 6000], depth: [1500, 3750] }, // ~600-1500 m
-      deep:  { weight: [0.10, 0.80], width: [3500, 8000], depth: [5500, 6500] }, // ~2200-2600 m
-      trench: { weight: [0, 0.08], width: [4200, 5200], depth: [11100, 11400] }, // ~4500 m: the deepest point (ascension)
+      beach: { weight: [0.07, 0.002], width: [1600, 2400], depth: [200, 250] }, // ~80-100 m, beach on the horizon
+      shelf: { weight: [0.40, 0.005], width: [2000, 5000], depth: [375, 625] },   // ~150-250 m
+      open:  { weight: [0.35, 0.04], width: [2500, 6000], depth: [1500, 3750] }, // ~600-1500 m
+      deep:  { weight: [0.10, 0.15], width: [3500, 8000], depth: [5500, 6500] }, // ~2200-2600 m
+      // open ocean: the late game. The seabed is ~3800-4000 m down (beyond a full-grown whale's 3000 m without
+      // Pressure Tolerance), flat: no ridges, no pillars - you never hit bottom
+      pelagic: { weight: [0, 0.75], width: [6000, 14000], depth: [9500, 10000] },
+      trench: { weight: [0, 0.06], width: [4200, 5200], depth: [11100, 11400] }, // ~4500 m: the deepest point (ascension)
     },
     start: { type: 'shelf', halfWidth: 900, neighbour: 'open' },
     // lookahead: segments are decided this far beyond the loaded area (short, so they reflect your progress now).
