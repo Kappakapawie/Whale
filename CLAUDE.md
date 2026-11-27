@@ -232,6 +232,7 @@ then open http://localhost:8123 (the `deep-echo` entry in `.claude/launch.json` 
 | `src/sonar.js` | Click emission, ray casting, face extraction, echo lifetime |
 | `src/fauna.js` | Ambient + mythical fauna (ring orbit for the ascension), coast swimmers, beach scenery, seabed decor, glow pass |
 | `src/quests.js` | Quest generation, tracking, rewards, quest panel |
+| `src/models3d.js` | 3D creature models (`MODELS3D`), per-creature 3D orientation/animation, mesh renderer, LOD |
 | `src/kraken.js` | The Kraken: behaviour, scan cells, partial-reveal hologram |
 | `src/entities.js` | `SHAPES`, `Whale` (growth, upgrades), `Prey` (all species), `Pod` + `Orca`, `Ship` + `Harpoon` |
 | `src/audio.js` | Procedural WebAudio sounds (clicks, echoes, hurt, harpoon, breath), volume channels + saved volumes |
@@ -251,6 +252,15 @@ then open http://localhost:8123 (the `deep-echo` entry in `.claude/launch.json` 
 - **Whale model** (`drawWhaleModel`, `CONFIG.whaleLook`): shaded sperm whale drawn along a bending spine; the tail
   beats faster/wider with speed and the body curves into turns (`swimPhase`/`swimAmp`/`bend` set in `Whale.update`).
   It's only the picture - collision and sonar still use `w.poly`.
+- **3D creature models** (`src/models3d.js`, `MODELS3D`, `drawCreature3D`, `CONFIG.models3d`): every prey, orca,
+  ambient/mythical animal and carcass is drawn as a small lit 3D mesh (body lofted from cross-sections + flat fins +
+  waving strands for arms/tentacles), sorted back to front. Each keeps a 3D orientation from how it moves
+  (`anim3d`): it yaws toward its facing (reversing turns through a head-on view, no flip), drifts between side and
+  three-quarter views (`yawWander`), banks into turns and pitches with its path; bodies undulate (fish side to side,
+  whales up and down, rays/turtles flap). Flat animals (manta, turtle) get a `viewRoll` so you see their backs.
+  Carcasses float belly up. Glows follow the 3D pose (`project3d`). Collision, sonar and holograms still use the
+  flat `SHAPES`. Tiny on-screen creatures use fewer segments or the flat polygon (LOD). A new shape needs a
+  `MODELS3D` entry in the same coordinates as its `SHAPES` entry, else it falls back to flat.
 - **Eating zone** (`CONFIG.mouth`, `Whale.canReach`): a capsule along the lower jaw, not just the snout tip.
 - **Kills burst into gore** (`Game.spawnGore`/`updateGore`, `drawGore`, `CONFIG.gore`): blood clouds and flesh chunks
   that drift, slow and sink (prey, swimmers, scavenged carcasses). It's lit world drawing, so in the deep it's only

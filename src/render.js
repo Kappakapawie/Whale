@@ -33,6 +33,7 @@ function buildGradients(ctx) {
 function drawGame(game) {
   const ctx = game.ctx, W = game.cw, H = game.ch, t = game.time, z = game.cam.z;
   const VW = W / z, VH = H / z, px = 1 / z; // view size in world units; px = one screen pixel
+  M3D_VIEW.px = px;
   const cx = game.cam.x, cy = game.cam.y;
   const x0 = cx, y0 = cy, x1 = cx + VW, y1 = cy + VH;
   const inView = (s, m = 0) => s.x1 > x0 - m && s.x0 < x1 + m && s.y1 > y0 - m && s.y0 < y1 + m;
@@ -75,12 +76,14 @@ function drawGame(game) {
   const hideFish = game.cosmic && !CONFIG.paint.showFish; // in space you only see the holes fish leave in the paint
   for (const p of game.prey) {
     if (hideFish || !inView(p.solid, 20)) continue;
+    if (CONFIG.models3d.enabled && drawCreature3D(ctx, p, t, { color: p.sp.color })) continue;
     ctx.fillStyle = p.sp.color; tracePoly(ctx, p.poly); ctx.fill();
   }
   drawDecor(ctx, game.world.decor, x0, x1, t);
   drawFaunaBodies(ctx, game, inView);
   for (const o of game.orcas) {
     if (!inView(o.solid, 20)) continue;
+    if (CONFIG.models3d.enabled && drawCreature3D(ctx, o, t, { color: '#16181c' })) continue;
     ctx.fillStyle = '#0c0d10'; tracePoly(ctx, o.poly); ctx.fill();
     ctx.fillStyle = '#e8eef0';
     tracePoly(ctx, transformShape(SHAPES.orcaEye, o.x, o.y, o.angle, o.scale)); ctx.fill();

@@ -403,6 +403,11 @@ const CONFIG = {
   gore: { chunks: [7, 18], chunkLife: 7, clouds: 5, cloudLife: 5, burst: 90, drag: 1.6, sink: 9, minRadius: 22,
           trailWidth: 1.2, echoLife: 0.7 },
 
+  // 3D creature models (models3d.js): ring = segments around each body cross-section; yawRate = how fast an animal
+  // turns around (rad/s) - reversing passes through a head-on view; yawWander = how far it drifts toward a
+  // three-quarter view so you see it from several angles. enabled false = the old flat polygons.
+  models3d: { enabled: true, ring: 10, yawRate: 2.6, yawWander: 0.45, lowPx: 45, lowRing: 6, minPx: 8 }, // LOD: under lowPx on screen use lowRing segments, under minPx flat
+
   // Eating zone: a capsule along the lower jaw, from `front` to `back` (whale-local units, body length ~190,
   // snout tip at x 90), `reach` x size around it. Prey whose body touches it can be bitten.
   mouth: { front: [96, 4], back: [20, 14], reach: 30 },

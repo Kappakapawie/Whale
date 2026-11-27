@@ -270,7 +270,7 @@ function drawGlows(ctx, game, x0, x1, y0, y1, px) {
     const dark = Math.max(1 - lightAt(f.y), f.orbit ? 1 : 0);
     if (dark < 0.5) continue;
     const pulse = 0.55 + 0.45 * Math.sin(t * (G.speed || 2) + f.phase);
-    const pts = transformShape(G.pts, f.x, f.y, f.angle, f.scale);
+    const pts = CONFIG.models3d.enabled ? project3d(f, G.pts, t) : transformShape(G.pts, f.x, f.y, f.angle, f.scale);
     // soft halo (at least 12 screen px) + bright core, so glows read at every zoom level
     const r = Math.max(G.r * Math.max(0.6, f.scale) * 2.5, 12 * px);
     for (const p of pts) {
@@ -284,7 +284,7 @@ function drawGlows(ctx, game, x0, x1, y0, y1, px) {
     if (!G || p.x < x0 - 300 || p.x > x1 + 300 || p.y < y0 - 300 || p.y > y1 + 300) continue;
     const pulse = 0.6 + 0.4 * Math.sin(t * (G.speed || 2) + p.x * 0.01);
     const r = Math.max(G.r * Math.max(0.6, p.scale) * 2.5, 12 * px);
-    for (const q of transformShape(G.pts, p.x, p.y, p.angle, p.scale)) {
+    for (const q of (CONFIG.models3d.enabled ? project3d(p, G.pts, t) : transformShape(G.pts, p.x, p.y, p.angle, p.scale))) {
       glowDot(ctx, q[0], q[1], r, G.c, pulse * 0.6);
       glowDot(ctx, q[0], q[1], Math.max(r * 0.2, 2.5 * px), [240, 250, 255], pulse * 0.9);
     }
@@ -301,6 +301,7 @@ function drawGlows(ctx, game, x0, x1, y0, y1, px) {
 function drawFaunaBodies(ctx, game, inView) {
   for (const f of game.fauna) {
     if (!inView(f.solid, 40)) continue;
+    if (CONFIG.models3d.enabled && drawCreature3D(ctx, f, game.time, { color: f.def.color, alpha: f.def.drift ? 0.6 : 1 })) continue;
     ctx.fillStyle = f.def.color; ctx.globalAlpha = f.def.drift ? 0.6 : 1;
     tracePoly(ctx, f.poly); ctx.fill(); ctx.globalAlpha = 1;
     if (f.def.lure) { // anglerfish lure stalk
@@ -311,6 +312,7 @@ function drawFaunaBodies(ctx, game, inView) {
   }
   for (const c of game.carcasses) {
     if (!inView(c.solid, 40)) continue;
+    if (CONFIG.models3d.enabled && drawCreature3D(ctx, c, game.time, { color: '#8e8a7e', alpha: 0.35 + 0.5 * Math.max(0, c.meat), bellyUp: true })) continue;
     ctx.globalAlpha = 0.35 + 0.5 * Math.max(0, c.meat); ctx.fillStyle = '#8e8a7e';
     tracePoly(ctx, c.poly); ctx.fill(); ctx.globalAlpha = 1;
   }
