@@ -277,8 +277,10 @@ class Game {
   }
 
   // A spawn point for species `sp`, at least minD from the whale and (if maxD is given) at most maxD away.
-  spawnPoint(sp, minD, maxD = null) {
+  // reachable: only inside the depth you can dive to (for meals brought to you, so they aren't out of reach)
+  spawnPoint(sp, minD, maxD = null, reachable = false) {
     const w = this.whale, R = maxD ?? this.activeRadius();
+    const dMax = reachable && !this.cosmic ? Math.max(sp.depthMin + 200, Math.min(sp.depthMax, 0.9 * w.stats.maxDepth / CONFIG.metersPerUnit)) : sp.depthMax;
     const bodyR = Math.min(sp.length * 0.12, 60);
     for (let tries = 0; tries < (maxD ? 6 : 1); tries++) {
       let p = null;
@@ -292,14 +294,14 @@ class Game {
         }
       }
       // free swimmers - and seabed dwellers when there is no seabed shallow enough nearby (deep water everywhere)
-      if (!p) p = this.randomWaterPoint(sp.depthMin, sp.depthMax, w.x - R, w.x + R, w, minD, CONFIG.terrainAvoid.waypointClearance + bodyR);
+      if (!p) p = this.randomWaterPoint(sp.depthMin, dMax, w.x - R, w.x + R, w, minD, CONFIG.terrainAvoid.waypointClearance + bodyR);
       if (p && (!maxD || dist(p.x, p.y, w.x, w.y) <= maxD)) return p;
     }
     return null;
   }
 
   spawnGroup(sp, minD, maxD = null) {
-    const p = this.spawnPoint(sp, minD, maxD);
+    const p = this.spawnPoint(sp, minD, maxD, maxD !== null); // groups brought to you stay within your dive limit
     if (!p) return false;
     const g = { sp, x: p.x, y: p.y, wx: p.x, wy: p.y, t: 0, flee: 0 };
     this.groups.push(g);
@@ -317,7 +319,7 @@ class Game {
     const range = D.huntRange * w.size;
     this.updateTopSupply(dt, D, range);
     const hasMeal = this.prey.some(p => w.canEat(p.sp) && w.nutrition(p.sp) >= D.minWorth &&
-                                        dist(p.x, p.y, w.x, w.y) < range);
+                                        dist(p.x, p.y, w.x, w.y) < range && this.reachable(p));
     if (hasMeal) { this.noMealT = 0; return; }
     this.noMealT += dt;
     const grace = w.energy < w.stats.maxEnergy * D.hungryAt ? D.hungryGraceTime : D.graceTime;
@@ -334,7 +336,7 @@ class Game {
     const minD = this.cosmic ? D.spawnMinDist * w.size : halfView + 200, maxD = Math.max(minD + 400, D.spawnMaxDist * w.size);
     for (const sp of options) {
       const ok = sp.group ? this.spawnGroup(sp, minD, maxD) : (() => {
-        const p = this.spawnPoint(sp, minD, maxD);
+        const p = this.spawnPoint(sp, minD, maxD, true);
         if (p) this.prey.push(new Prey(sp, p.x, p.y));
         return !!p;
       })();
@@ -342,17 +344,20 @@ class Game {
     }
   }
 
+  // Is this creature above the whale's dive limit (so it can actually be caught)?
+  reachable(p) { return this.cosmic || p.y * CONFIG.metersPerUnit < this.whale.stats.maxDepth * 0.95; }
+
   // Keep the food chain flowing: if none of your top species (the one that unlocks the next step) has been near
   // for topGrace s, bring some in out of sight but inside sonar reach.
   updateTopSupply(dt, D, range) {
     const w = this.whale, top = w.topSpecies();
-    if (!D.topGrace || top.final || this.prey.some(p => p.sp === top && dist(p.x, p.y, w.x, w.y) < range)) { this.noTopT = 0; return; }
+    if (!D.topGrace || top.final || this.prey.some(p => p.sp === top && dist(p.x, p.y, w.x, w.y) < range && this.reachable(p))) { this.noTopT = 0; return; }
     this.noTopT = (this.noTopT || 0) + dt;
     if (this.noTopT < D.topGrace) return;
     this.noTopT = D.topGrace - D.retryTime;
     const halfView = this.cw / (2 * this.cam.z);
     const minD = this.cosmic ? D.spawnMinDist * w.size : halfView + 200, maxD = Math.max(minD + 400, D.spawnMaxDist * w.size);
-    const ok = top.group ? this.spawnGroup(top, minD, maxD) : (() => { const q = this.spawnPoint(top, minD, maxD); if (q) this.prey.push(new Prey(top, q.x, q.y)); return !!q; })();
+    const ok = top.group ? this.spawnGroup(top, minD, maxD) : (() => { const q = this.spawnPoint(top, minD, maxD, true); if (q) this.prey.push(new Prey(top, q.x, q.y)); return !!q; })();
     if (ok) this.noTopT = 0;
   }
 

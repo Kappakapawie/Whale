@@ -167,7 +167,8 @@ game reskinned, with its own food chain of cosmic fish ending in the Star Serpen
 - **Lively fish.** Solitary fish cruise, forage (stop-and-go pecking) and rest; schools cruise, mill and rest
   (`CONFIG.fishLife`).
 - **Deeper = more and bigger prey.** Species depth bands step down with tier (gameplay over realism) and deep tiers
-  have higher counts. Keep this progression when adding species.
+  have higher counts. The deep tiers reach down into the open ocean (the giant squid to ~3500 m), so there is always
+  prey below 2000 m. Keep this progression when adding species.
 - **Don't let the player starve.** Energy per meal grows with tier; the meal director spawns something within
   `graceTime` (10 s, 4 s when hungry), favouring the top tiers of the diet. A swimming bot survived 8 minutes with
   meals ~2 s apart (longest gap 41 s) - re-run that kind of check after touching energy/spawn numbers.
@@ -188,8 +189,10 @@ game reskinned, with its own food chain of cosmic fish ending in the Star Serpen
   (rocks, pillars, plants) may reach the surface - shallow coasts clamp heights.
 - **The food chain keeps flowing** (`Game.updateTopSupply`, `mealDirector.topGrace`): if none of your TOP species
   (the one that unlocks the next step) has been near for `topGrace` s, some are brought in inside sonar reach.
-  Seabed-dwellers spawn mid-water in their depth band when no shallow seabed is around. Check the flow with
-  `node tools/flow-bot.js 30` (a hunting bot; last run reached the oarfish in ~29 min, steps 0.5-8 min).
+  Seabed-dwellers spawn mid-water in their depth band when no shallow seabed is around. Meals brought to you (meal
+  director, top supply) spawn above your dive limit, and only reachable prey counts as "near" (`Game.reachable`).
+  Check the flow with `node tools/flow-bot.js 30` (a hunting bot; runs vary - last runs: manta ray to sleeper shark
+  at 30 min, steps 1-6 min).
 - **The whale's body grows slower than its size** (`growth.bodyExp` 0.6, `Whale.bodyScale()`): drawing, collision and
   the mouth use size^0.6 (full size looks ~1.9x the calf), so the fish stay big next to you; stats, sonar, camera and
   everything else still use `size`.

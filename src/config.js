@@ -206,6 +206,7 @@ const CONFIG = {
     // Real-world lengths at bodyMetersPerUnit (1 m ~ 38 units). Depths at metersPerUnit (1 unit = 0.4 m).
     // Gameplay over realism for depth: each tier lives a bit deeper than the last and deeper tiers are more
     // plentiful, so going deeper means more and bigger prey (and more darkness, pressure and air risk).
+    // The deep tiers reach down into the open ocean (to ~3500 m for the giant squid), so the deep water is never empty.
     { id: 'sardine',   name: 'Sardine',        shape: 'fish',      length: 8,   color: '#c9d6df', minSize: 1.0,      // 0.2 m
       mass: 2,   ep: 1,   energy: 3,   depthMin: 20,   depthMax: 300,  count: 3, group: 6, speed: 40, fleeSpeed: 120 },
     { id: 'mackerel',  name: 'Mackerel',       shape: 'fish',      length: 15,  color: '#7fa6a0', minSize: 1.05,     // 0.4 m
@@ -215,22 +216,22 @@ const CONFIG = {
     { id: 'octopus',   name: 'Deep Octopus',   shape: 'octopus',   length: 34,  color: '#c08a5a', minSize: 1.3,      // 0.9 m
       mass: 14,  ep: 5,   energy: 19,  depthMin: 700,  depthMax: 2000, count: 5, speed: 20, fleeSpeed: 90, scavenger: true },
     { id: 'humboldt',  name: 'Humboldt Squid', shape: 'squid',     length: 57,  color: '#d1a35f', minSize: 1.45,     // 1.5 m
-      mass: 22,  ep: 7,   energy: 29,  depthMin: 900,  depthMax: 2400, count: 3, group: 3, speed: 40, fleeSpeed: 130 },
+      mass: 22,  ep: 7,   energy: 29,  depthMin: 900,  depthMax: 3600, count: 3, group: 3, speed: 40, fleeSpeed: 130 },
     { id: 'toothfish', name: 'Toothfish',      shape: 'fatfish',   length: 68,  color: '#8a7a55', minSize: 1.6,      // 1.8 m
-      mass: 32,  ep: 10,  energy: 40,  depthMin: 1300, depthMax: 2900, count: 5, speed: 25, fleeSpeed: 100, scavenger: true },
+      mass: 32,  ep: 10,  energy: 40,  depthMin: 1300, depthMax: 4200, count: 5, speed: 25, fleeSpeed: 100, scavenger: true },
     { id: 'tuna',      name: 'Bluefin Tuna',   shape: 'tuna',      length: 76,  color: '#3e5d7a', minSize: 1.75,     // 2 m
-      mass: 45,  ep: 13,  energy: 56,  depthMin: 1600, depthMax: 3200, count: 3, group: 3, speed: 55, fleeSpeed: 135 },
+      mass: 45,  ep: 13,  energy: 56,  depthMin: 1600, depthMax: 4800, count: 3, group: 3, speed: 55, fleeSpeed: 135 },
     { id: 'swordfish', name: 'Swordfish',      shape: 'swordfish', length: 114, color: '#5d6f8c', minSize: 1.9,      // 3 m
-      mass: 60,  ep: 17,  energy: 72,  depthMin: 2000, depthMax: 3600, count: 4, speed: 55, fleeSpeed: 125 },
+      mass: 60,  ep: 17,  energy: 72,  depthMin: 2000, depthMax: 5600, count: 4, speed: 55, fleeSpeed: 125 },
     { id: 'ray',       name: 'Manta Ray',      shape: 'ray',       length: 152, color: '#4b4f5a', minSize: 2.05,     // 4 m
-      mass: 80,  ep: 22,  energy: 88,  depthMin: 2300, depthMax: 3900, count: 4, speed: 30, fleeSpeed: 110 },
+      mass: 80,  ep: 22,  energy: 88,  depthMin: 2300, depthMax: 6200, count: 4, speed: 30, fleeSpeed: 110 },
     { id: 'shark',     name: 'Sleeper Shark',  shape: 'shark',     length: 171, color: '#5a5f5a', minSize: 2.2,      // 4.5 m
-      mass: 110, ep: 30,  energy: 120, depthMin: 2600, depthMax: 4400, count: 4, speed: 40, fleeSpeed: 95, scavenger: true,
+      mass: 110, ep: 30,  energy: 120, depthMin: 2600, depthMax: 7000, count: 4, speed: 40, fleeSpeed: 95, scavenger: true,
       attack: { damage: 15, cooldown: 1.4, range: 350, chaseSpeed: 70, chaseTime: 4, rest: 35 } },
     { id: 'oarfish',   name: 'Oarfish',        shape: 'oarfish',   length: 300, color: '#b9c3cf', minSize: 2.4,      // 8 m
-      mass: 150, ep: 40,  energy: 160, depthMin: 3000, depthMax: 4800, count: 3, speed: 25, fleeSpeed: 75 },
+      mass: 150, ep: 40,  energy: 160, depthMin: 3000, depthMax: 7800, count: 3, speed: 25, fleeSpeed: 75 },
     { id: 'giant',     name: 'Giant Squid',    shape: 'giantSquid',length: 460, color: '#b88d6a', minSize: 2.6,      // 12 m
-      mass: 300, ep: 200, energy: 400, depthMin: 3500, depthMax: 5500, count: 1, speed: 30, fleeSpeed: 80,
+      mass: 300, ep: 200, energy: 400, depthMin: 3500, depthMax: 8800, count: 1, speed: 30, fleeSpeed: 80,
       hp: 120, final: true, attack: { damage: 12, cooldown: 0.9, range: 700, chaseSpeed: 55, chaseTime: 10, rest: 15 } },
 
     // --- The cosmic food chain (cosmic: true): only exists after the ascension (CONFIG.ascension), in the
