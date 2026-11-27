@@ -639,7 +639,7 @@ function drawModels(ctx, game, px) {
     const col = (al) => `rgba(${c[0]},${c[1]},${c[2]},${Math.min(1, al).toFixed(3)})`;
     if (m.kraken) { drawKrakenModel(ctx, m, col, Math.pow(1 - age, 1.2) * 0.9, px); continue; }
     // the snapshot glides along the heading it had at the hit (dead reckoning) until a newer one replaces it
-    const canGlide = game.whale.stats.lockTime > 0; // only with the Echo Lock upgrade do images follow movement
+    const canGlide = S.driftMax > 0; // snapshots are still images; only an active Echo Lock follows the creature
     const dr = m.lock || !canGlide ? 0 : Math.min(t - m.t, S.driftMax), mx = m.x + (m.vx || 0) * dr, my = m.y + (m.vy || 0) * dr;
     const mpath = m.path && dr ? m.path.map(q => [q[0] + (m.vx || 0) * dr, q[1] + (m.vy || 0) * dr]) : m.path;
     // well-known creatures: the hologram is their 3D model, in the pose they had when the sound hit (live when locked)
@@ -751,7 +751,7 @@ function drawSonar(ctx, game, px) {
     if (a < 0.02) continue;
     const c = S.colorCode ? S.colors[e.kind] : S.colors.terrain;
     const rgb = `${c[0]},${c[1]},${c[2]}`;
-    const dr = game.whale.stats.lockTime > 0 ? Math.min(t - e.t, S.driftMax) : 0; // without Echo Lock: a still image
+    const dr = S.driftMax > 0 ? Math.min(t - e.t, S.driftMax) : 0; // echoes are still images (driftMax 0)
     const ox = (e.vx || 0) * dr, oy = (e.vy || 0) * dr;
     if (ox || oy) { ctx.save(); ctx.translate(ox, oy); }
     if (e.line) {
