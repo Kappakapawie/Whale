@@ -77,8 +77,10 @@ game reskinned, with its own food chain of cosmic fish ending in the Star Serpen
 - **The ascension** (`Game.updateAscension`, `CONFIG.ascension`): rare `trench` segments (~4500 m, no ridges; none for a new
   whale, ~1 per 70,000-110,000 units late) are the deepest point: a steep shaft only a full-grown whale with
   Pressure Tolerance upgrades can reach the bottom of (`world.depth` 12500 covers it). Within
-  `triggerDist` of the trench floor the mythical creatures gather in a ring around you (`Fauna.orbit`), a violet glow
-  builds and a white flash takes you into the cosmic realm (`Game.enterCosmic`). One-way.
+  `triggerDist` of the trench floor a slow ritual starts (~26 s, `gatherTime`): the mythical creatures arrive one by
+  one out of the dark (`arriveEvery`), circle you and slowly close the ring (`Fauna.orbit`, `ringTighten`), phase
+  messages appear, a violet glow builds, and only in the last seconds a white flash takes you into the cosmic realm
+  (`Game.enterCosmic`). Rising `leaveMult` x `triggerDist` off the floor breaks the ritual. One-way once it completes.
 - **The cosmic realm** (`game.cosmic`, `whale.cosmic`, `CONFIG.cosmic`): a new `World` with `{ cosmic: true }` (only
   'void' segments, cosmic rock floor, no decor/cables), backdrop `drawCosmos` (parallax nebulae, stars, spiral
   galaxies, planets), flat light darkness so stars and glows stay bright. Godly rules: no air, no pressure, no

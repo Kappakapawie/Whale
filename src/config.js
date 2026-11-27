@@ -244,10 +244,19 @@ const CONFIG = {
   ],
 
   // The deepest point: rare 'trench' segments (CONFIG.segments) drop to ~4500 m - far below the normal ocean, so only
-  // a full-grown whale with Pressure Tolerance upgrades reaches the bottom (none appear for a new whale). Within triggerDist (x size) of the trench floor the
-  // mythical creatures gather in a ring around you (ringCount at ringRadius x size), and after gatherTime you
-  // ascend: a flash, and the ocean becomes outer space for good (one-way). See Game.updateAscension.
-  ascension: { triggerDist: 260, gatherTime: 7, flashTime: 3, ringCount: 10, ringRadius: 300, ringSpeed: 0.12 },
+  // a full-grown whale with Pressure Tolerance upgrades reaches the bottom (none appear for a new whale).
+  // The ascension is a slow ritual (gatherTime s): within triggerDist (x size) of the trench floor the mythical
+  // creatures arrive one by one (every arriveEvery s, from startFar x their ring radius away, at arriveSpeed x size),
+  // circle you and close the ring to ringTighten of its size; a violet glow builds, messages mark the phases, and the
+  // white flash comes in the last flashTime/2 s. Rising more than leaveMult x triggerDist off the floor breaks it.
+  // Then the ocean becomes outer space for good (one-way). See Game.updateAscension.
+  ascension: { triggerDist: 260, leaveMult: 2, gatherTime: 26, flashTime: 4, ringCount: 10, ringRadius: 300,
+               ringSpeed: 0.08, ringTighten: 0.55, arriveEvery: 1.3, startFar: 3, arriveSpeed: 120,
+               messages: [[0, 'The deepest point. Something stirs in the dark...'],
+                          [7, 'They are coming. Ancient shapes circle you.'],
+                          [15, 'The circle tightens. The deep is listening.'],
+                          [21, 'Something above everything opens...']],
+               brokenText: 'The gathering fades back into the dark.' },
 
   // The cosmic realm ("intergalactic soup"): the same game in a space reskin. No air (godly), hunger stays, no
   // ships/orcas/kraken/humans. The floor is far-away cosmic rock; `ceiling` gently pushes you back down (y).

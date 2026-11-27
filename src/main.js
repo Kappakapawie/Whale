@@ -70,23 +70,35 @@ class Game {
     const w = this.whale, A = CONFIG.ascension;
     this.ascendFx = Math.max(0, this.ascendFx - dt / A.flashTime);
     if (this.cosmic || !w.alive) return;
+    const aboveFloor = this.world.floorAt(w.x) - w.y, onTrench = this.world.segAt(w.x).type === 'trench';
     if (!this.ascend) {
-      if (this.world.segAt(w.x).type !== 'trench' || this.world.floorAt(w.x) - w.y > A.triggerDist * w.size) return;
-      this.ascend = { t: 0 };
-      this.say('The deepest point. Something ancient gathers around you...', 6, '#d8c8ff');
-      const mythic = CONFIG.fauna.filter(d => d.mythic);
-      for (let i = 0; i < A.ringCount; i++) {
-        const def = mythic[i % mythic.length], a = i / A.ringCount * TAU, r = A.ringRadius * w.size * rand(1.2, 1.5);
-        const f = new Fauna(def, w.x + Math.cos(a) * r, w.y + Math.sin(a) * r * 0.6);
-        f.orbit = { a, r, r0: r, dir: i % 2 ? 1 : -1 };
-        this.fauna.push(f);
-      }
+      if (!onTrench || aboveFloor > A.triggerDist * w.size) return;
+      this.ascend = { t: 0, spawned: 0, said: 0 };
       return;
     }
-    this.ascend.t += dt;
-    const half = A.flashTime * 0.5, fT = this.ascend.t - (A.gatherTime - half);
-    if (fT > 0) this.ascendFx = Math.min(1, fT / half); // the flash builds up over the last half flash time
-    if (this.ascend.t >= A.gatherTime) this.enterCosmic();
+    const g = this.ascend;
+    // leaving the floor breaks the ritual: the creatures lose interest and drift off
+    if (!onTrench || aboveFloor > A.triggerDist * A.leaveMult * w.size) {
+      for (const f of this.fauna) if (f.orbit) f.orbit = null;
+      this.ascend = null; this.ascendFx = 0;
+      this.say(A.brokenText, 4, '#d8c8ff');
+      return;
+    }
+    g.t += dt;
+    // the mythical creatures arrive one by one out of the dark, from far away
+    const mythic = CONFIG.fauna.filter(d => d.mythic);
+    while (g.spawned < A.ringCount && g.t >= g.spawned * A.arriveEvery) {
+      const i = g.spawned++, def = mythic[i % mythic.length], a = i / A.ringCount * TAU + rand(-0.2, 0.2);
+      const r0 = A.ringRadius * w.size * rand(1.2, 1.5), far = r0 * A.startFar;
+      const f = new Fauna(def, w.x + Math.cos(a) * far, w.y + Math.sin(a) * far * 0.6);
+      f.orbit = { a, r: r0, r0, dir: i % 2 ? 1 : -1 };
+      this.fauna.push(f);
+    }
+    // messages mark the phases of the ritual
+    while (g.said < A.messages.length && g.t >= A.messages[g.said][0]) this.say(A.messages[g.said++][1], 6, '#d8c8ff');
+    const half = A.flashTime * 0.5, fT = g.t - (A.gatherTime - half);
+    if (fT > 0) this.ascendFx = Math.min(1, fT / half); // the flash builds up at the very end
+    if (g.t >= A.gatherTime) this.enterCosmic();
   }
 
   enterCosmic() {

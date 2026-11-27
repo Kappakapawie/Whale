@@ -185,7 +185,7 @@ function drawGame(game) {
   ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
   // the ascension: a violet glow builds while the mythical creatures gather, then a white flash into space
   if (game.ascend) {
-    const a = 0.3 * clamp(game.ascend.t / CONFIG.ascension.gatherTime, 0, 1);
+    const k = clamp(game.ascend.t / CONFIG.ascension.gatherTime, 0, 1), a = 0.35 * k * k; // slow at first
     const ag = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7);
     ag.addColorStop(0, `rgba(190,160,255,${(a * 0.5).toFixed(3)})`); ag.addColorStop(1, `rgba(90,50,180,${a.toFixed(3)})`);
     ctx.fillStyle = ag; ctx.fillRect(0, 0, W, H);

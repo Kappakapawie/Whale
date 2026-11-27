@@ -43,11 +43,13 @@ class Fauna extends Creature {
   update(dt, game) {
     const d = this.def, w = game.whale, t = game.time;
     if (this.orbit) { // the gathering at the trench floor: circle the whale on a ring, facing along it
-      const o = this.orbit, A = CONFIG.ascension;
-      o.a += A.ringSpeed * o.dir * dt; o.r = Math.max(o.r - 30 * dt, o.r0 * 0.6);
+      const o = this.orbit, A = CONFIG.ascension, k = game.ascend ? clamp(game.ascend.t / A.gatherTime, 0, 1) : 0;
+      o.a += A.ringSpeed * o.dir * dt; o.r = lerp(o.r0, o.r0 * A.ringTighten, k * k); // the ring closes in slowly
       const tx = w.x + Math.cos(o.a) * o.r, ty = w.y + Math.sin(o.a) * o.r * 0.6;
-      this.x += (tx - this.x) * Math.min(1, dt * 0.8); this.y += (ty - this.y) * Math.min(1, dt * 0.8);
-      this.angle = o.a + o.dir * Math.PI / 2;
+      const d = dist(this.x, this.y, tx, ty), step = Math.min(d, A.arriveSpeed * w.size * dt);
+      if (d > 1) { this.x += (tx - this.x) / d * step; this.y += (ty - this.y) / d * step; }
+      // swim toward the ring while arriving, then face along it
+      this.angle = d > o.r0 * 0.25 ? Math.atan2(ty - this.y, tx - this.x) : o.a + o.dir * Math.PI / 2;
       this.updatePoly();
       return;
     }
