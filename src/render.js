@@ -557,22 +557,25 @@ function drawModels(ctx, game, px) {
     const c = S.colorCode ? S.colors[m.kind] : S.colors.terrain;
     const col = (al) => `rgba(${c[0]},${c[1]},${c[2]},${Math.min(1, al).toFixed(3)})`;
     if (m.kraken) { drawKrakenModel(ctx, m, col, Math.pow(1 - age, 1.2) * 0.9, px); continue; }
+    // the snapshot glides along the heading it had at the hit (dead reckoning) until a newer one replaces it
+    const dr = m.lock ? 0 : Math.min(t - m.t, S.driftMax), mx = m.x + (m.vx || 0) * dr, my = m.y + (m.vy || 0) * dr;
+    const mpath = m.path && dr ? m.path.map(q => [q[0] + (m.vx || 0) * dr, q[1] + (m.vy || 0) * dr]) : m.path;
     // well-known creatures: the hologram is their 3D model, in the pose they had when the sound hit (live when locked)
     const pose = m.lock ? m.owner.v3 : m.pose;
     if (CONFIG.models3d.enabled && pose && m.f >= S.model.full3d && MODELS3D[m.shape]) {
       // position and pose stay frozen (no live tracking) but the body keeps its swim cycle, so the hologram swims in place
-      const ghost = { x: m.x, y: m.y, angle: m.angle, scale: m.scale, shapeName: m.shape, vx: 0, vy: 0,
+      const ghost = { x: mx, y: my, angle: m.angle, scale: m.scale, shapeName: m.shape, vx: 0, vy: 0,
                       v3: { ...pose, t, phase: pose.phase + (m.lock ? 0 : (t - m.t) * 3), amp: Math.max(pose.amp || 0.5, 0.6) } };
       const ha = a * (0.45 + 0.55 * (m.f - S.model.full3d) / (1 - S.model.full3d));
       if (drawCreature3D(ctx, ghost, t, { frozen: true, holo: c, holoAlpha: ha })) {
-        if (m.path) drawPath(ctx, m.path, col, a, px);
+        if (mpath) drawPath(ctx, mpath, col, a, px);
         if (m.lock) drawLockReticle(ctx, m.x, m.y, 60 * m.scale + 20 * px, col(a), px);
         continue;
       }
     }
     const flip = Math.cos(m.angle) < 0 ? -1 : 1;
     ctx.save();
-    ctx.translate(m.x, m.y); ctx.rotate(m.angle); ctx.scale(m.scale, m.scale * flip);
+    ctx.translate(mx, my); ctx.rotate(m.angle); ctx.scale(m.scale, m.scale * flip);
     const lw = px / m.scale, { ribs, x0, x1 } = shapeRibs(m.shape);
     ctx.lineWidth = lw * 1.2;
 
@@ -606,7 +609,7 @@ function drawModels(ctx, game, px) {
       }
     }
     ctx.restore();
-    if (m.path) drawPath(ctx, m.path, col, a, px);
+    if (mpath) drawPath(ctx, mpath, col, a, px);
     if (m.lock) drawLockReticle(ctx, m.x, m.y, 60 * m.scale + 20 * px, col(a), px);
   }
   ctx.restore();
@@ -654,13 +657,20 @@ function drawSonar(ctx, game, px) {
     ctx.stroke();
   }
 
+  // A creature's echoes keep gliding along the heading it had when the sound hit (dead reckoning from that click,
+  // capped at driftMax s) until a newer echo of it arrives - then the older lines give way to the new ones.
+  const newest = new Map();
+  for (const e of game.sonar.echoes) if (e.owner && t >= e.t && e.t > (newest.get(e.owner) || -1)) newest.set(e.owner, e.t);
   for (const e of game.sonar.echoes) {
     if (t < e.t) continue;
+    if (e.owner && newest.get(e.owner) - e.t > 0.15) continue; // refreshed by a newer echo
     const age = (t - e.t) / e.life;
     const a = e.i * Math.pow(1 - age, 1.4);
     if (a < 0.02) continue;
     const c = S.colorCode ? S.colors[e.kind] : S.colors.terrain;
     const rgb = `${c[0]},${c[1]},${c[2]}`;
+    const dr = Math.min(t - e.t, S.driftMax), ox = (e.vx || 0) * dr, oy = (e.vy || 0) * dr;
+    if (ox || oy) { ctx.save(); ctx.translate(ox, oy); }
     if (e.line) {
       ctx.strokeStyle = `rgba(${rgb},${(a * 0.25).toFixed(3)})`; ctx.lineWidth = 7 * px;
       ctx.beginPath(); ctx.moveTo(e.x1, e.y1); ctx.lineTo(e.x2, e.y2); ctx.stroke();
@@ -670,6 +680,7 @@ function drawSonar(ctx, game, px) {
       ctx.fillStyle = `rgba(${rgb},${a.toFixed(3)})`;
       ctx.beginPath(); ctx.arc(e.x1, e.y1, 2.5 * px, 0, TAU); ctx.fill();
     }
+    if (ox || oy) ctx.restore();
   }
   ctx.restore();
 }

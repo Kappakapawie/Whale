@@ -78,11 +78,12 @@ class Sonar {
       if (dist(h.x, h.y, g.x, g.y) > joinDist) continue;
       joined[i] = 1; joined[j % n] = 1;
       this.echoes.push({ line: true, x1: h.x, y1: h.y, x2: g.x, y2: g.y,
-        t: time + Math.min(h.d, g.d) / speed, life, i: (h.i + g.i) / 2, kind: cls(h.s), owner: h.s.owner });
+        t: time + Math.min(h.d, g.d) / speed, life, i: (h.i + g.i) / 2, kind: cls(h.s), owner: h.s.owner,
+        vx: (h.s.owner && h.s.owner.vx) || 0, vy: (h.s.owner && h.s.owner.vy) || 0 }); // keeps gliding with its heading
     }
     for (let i = 0; i < n; i++) {
       const h = hits[i];
-      if (h && !joined[i] && !skip(h.s)) this.echoes.push({ line: false, x1: h.x, y1: h.y, t: time + h.d / speed, life, i: h.i, kind: cls(h.s), owner: h.s.owner });
+      if (h && !joined[i] && !skip(h.s)) this.echoes.push({ line: false, x1: h.x, y1: h.y, t: time + h.d / speed, life, i: h.i, kind: cls(h.s), owner: h.s.owner, vx: (h.s.owner && h.s.owner.vx) || 0, vy: (h.s.owner && h.s.owner.vy) || 0 });
     }
     return { hitSolids, range, speed, loudness: cfg.loudness };
   }

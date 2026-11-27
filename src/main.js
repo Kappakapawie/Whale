@@ -553,6 +553,7 @@ class Game {
       angle: owner.angle + rand(-1, 1) * err * M.maxAngleError,
       scale: owner.scale * (1 + rand(-1, 1) * err * M.maxSizeError),
       t: revealT, life: CONFIG.sonar.echoLife * lifeMult,
+      vx: owner.vx || 0, vy: owner.vy || 0, // the heading at the hit: the snapshot keeps gliding along it (dead reckoning)
       pose: owner.v3 ? { yaw: owner.v3.yaw, roll: owner.v3.roll, phase: owner.v3.phase, amp: owner.v3.amp } : null, // 3D pose at the hit
       // Fully scanned: the sonar also reveals the path it is committed to for the next second.
       path: f >= 1 ? owner.predictPath(Math.min(owner.planT, CONFIG.creatures.reactionTime)) : null,
@@ -830,7 +831,8 @@ class Game {
         if (nx * (mx - cx) + ny * (my - cy) < 0) { nx = -nx; ny = -ny; } // outward
         const dx = mx - h.x, dy = my - h.y, dl = Math.hypot(dx, dy) || 1, facing = -(nx * dx + ny * dy) / dl;
         if (facing <= 0.05) continue; // only the faces turned toward you
-        this.sonar.echoes.push({ line: true, x1: A[0], y1: A[1], x2: B[0], y2: B[1], t: this.time, life, i: 0.35 + 0.65 * facing, kind, owner: o });
+        this.sonar.echoes.push({ line: true, x1: A[0], y1: A[1], x2: B[0], y2: B[1], t: this.time, life, i: 0.35 + 0.65 * facing, kind, owner: o,
+          vx: o.vx || 0, vy: o.vy || 0 });
       }
     }
     this.scanCreature(o, this.time, w.stats.echoLifeMult, false);
