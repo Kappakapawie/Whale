@@ -37,6 +37,7 @@ class Whale {
     this.scans = {};       // species id (or 'orca') -> number of sonar scans
     this.krakenKnown = new Set(); // revealed kraken scan cells (see kraken.js)
     this.diet = new Set([CONFIG.species[0].id]); // species you can eat (grows automatically)
+    this.adapt = {}; this.apex = new Set(); this.zone = null; this.zonePenalty = 0; // depth zones (CONFIG.zones)
     this.stats = null;
     this.recomputeStats();
     const s = this.stats;
@@ -56,6 +57,11 @@ class Whale {
       if (!lv) continue;
       for (const k of [].concat(u.stat)) s[k] = u.mult ? s[k] * Math.pow(u.mult, lv) : s[k] + u.add * lv;
     }
+    if (this.zonePenalty > 0) { // not adapted to this zone yet: weak
+      const p = this.zonePenalty;
+      s.maxSpeed *= 1 - p; s.accel *= 1 - p; s.bite *= 1 - p;
+      s.damageTaken *= 1 + p; s.oxygenDrain *= 1 + p; s.sprintOxygenDrain *= 1 + p;
+    }
     const G = CONFIG.growth, z = this.size;
     s.maxSpeed *= z ** G.speedExp; s.accel *= z ** G.accelExp; s.turnRate *= z ** G.turnExp;
     s.maxOxygen *= z ** G.oxygenExp;
@@ -73,7 +79,8 @@ class Whale {
   }
 
   // Diet = which species you may eat. Unlocking the next one is an upgrade bought with EP.
-  canEat(sp) { return this.diet.has(sp.id); }
+  // a zone's hunters become food once you rule that zone
+  canEat(sp) { return this.diet.has(sp.id) || (!!sp.hunter && this.apex.has(sp.zone)); }
   // Tier = position in the food chain. Gap = how many tiers above the top of your diet a species is.
   tierGap(sp) {
     let top = 0;
@@ -84,6 +91,7 @@ class Whale {
   canHunt(sp) { return true; }
   // Fight cost for a species `gap` tiers above the top of your diet (null if it is in your diet).
   struggleFor(sp) {
+    if (sp.hunter && this.canEat(sp)) return null; // you rule their zone: no longer a fight
     const gap = sp.hunter ? sp.fightGap : this.tierGap(sp), S = CONFIG.struggle; // hunters: a fixed-size fight
     if (gap <= 0) return null;
     return { gap, bites: S.baseBites + S.bitesPerTier * gap, damage: S.damageBase * Math.pow(S.damageGrowth, gap - 1),
@@ -183,6 +191,7 @@ class Whale {
     }
     this.collide(game);
     this.updatePoly();
+    game.updateZone(this);
 
     // Animation state for the body model (render only): the tail beats faster and wider with speed,
     // and the body bends into turns.
@@ -459,7 +468,7 @@ class Prey extends Creature {
     // A huge whale is noticed from far away (pressure wave, noise), so small prey escapes big whales easily.
     const sense = 150 + this.length + CONFIG.growth.preyNoticePerSize * w.size;
     const a = sp.attack;
-    const attacking = a && w.alive && this.restT <= 0 && (!edible || sp.hp) && d < a.range + this.length;
+    const attacking = a && w.alive && this.restT <= 0 && (!edible || (sp.hp && !sp.hunter)) && d < a.range + this.length;
     if (attacking) {
       this.chaseT += dt;
       if (this.chaseT > a.chaseTime) { this.restT = a.rest; this.chaseT = 0; } // gives up
@@ -629,6 +638,14 @@ class Orca extends Creature {
     this.biteT -= dt; this.sprintT = (this.sprintT || 0) - dt; this.sprintCd = (this.sprintCd || 0) - dt;
     const d = dist(this.x, this.y, w.x, w.y);
     const sight = c.sightRange * lightAt(w.y) + c.closeSense * w.size;
+    const ruled = w.apex.has('shallows'); // you rule the Shallows: the orcas are prey now and keep away
+    if (ruled) {
+      pod.alertT = 0;
+      if (d < sight + 300 * w.size) this.steer(this.x + (this.x - w.x), this.y + (this.y - w.y), c.huntSpeed * 0.9, dt, 3);
+      else this.steer(pod.x + this.ox, pod.y + this.oy, c.patrolSpeed, dt, 1.2);
+      this.avoidTerrain(dt, game, CONFIG.terrainAvoid.minMargin); this.integrate(dt, game);
+      return;
+    }
     if (w.alive && d < sight) pod.alert(w.x, w.y, w.size);
     const sees = pod.alertT > 0 && w.alive && d < sight;
 

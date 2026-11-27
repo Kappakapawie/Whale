@@ -70,6 +70,48 @@ class Game {
     DAYLIGHT.k = this.cosmic ? 1 : k;
   }
 
+  // ------------------------------------------------------------ zones: arrive weak, adapt, rule, go deeper
+  zoneDef(id) { const Z = CONFIG.zones; return id === Z.cosmic.id ? Z.cosmic : Z.list.find(z => z.id === id); }
+  zoneAt(y) {
+    const Z = CONFIG.zones;
+    if (this.cosmic) return Z.cosmic;
+    let cur = Z.list[0];
+    for (const z of Z.list) if (y >= z.top) cur = z;
+    return cur;
+  }
+  // called every frame from Whale.update: tracks the zone and keeps the adaptation penalty in the stats
+  updateZone(w) {
+    const z = this.zoneAt(w.y);
+    if (z.id !== w.zone) {
+      const first = w.adapt[z.id] === undefined;
+      if (first) w.adapt[z.id] = 0;
+      if (w.zone && first) this.say(`You enter ${z.name}. Everything here outclasses you - eat to adapt.`, 6, '#ffd166');
+      else if (w.zone && w.apex.has(z.id)) this.say(`You return to ${z.name}, which you rule.`, 3, '#bfe3ff');
+      w.zone = z.id;
+    }
+    const pen = w.apex.has(z.id) ? 0 : z.penalty * (1 - (w.adapt[z.id] || 0));
+    if (Math.abs(pen - w.zonePenalty) > 0.005) { w.zonePenalty = pen; w.recomputeStats(); }
+  }
+  // just surviving in a zone adapts you slowly too (full after zone.soak s)
+  soakZone(dt) {
+    const w = this.whale, z = w.zone && this.zoneDef(w.zone);
+    if (z && w.alive && !w.apex.has(z.id)) this.gainAdapt('soak', dt / z.soak * z.meals);
+  }
+  // a meal in your current zone adapts you to it (kind: 'meal' | 'fight' | 'predator' | 'snack' | 'soak')
+  gainAdapt(kind, amount = 1) {
+    const w = this.whale, Z = CONFIG.zones, z = this.zoneDef(w.zone);
+    if (!z || w.apex.has(z.id)) return;
+    const k = (kind === 'fight' ? Z.fightMult : kind === 'predator' ? Z.predatorMult : kind === 'snack' ? 0.5 : 1) * amount;
+    w.adapt[z.id] = Math.min(1, (w.adapt[z.id] || 0) + k / z.meals);
+    if (w.adapt[z.id] >= 1) {
+      w.apex.add(z.id); w.points += Z.apexPoints; w.zonePenalty = 0; w.recomputeStats();
+      const prey = { shallows: 'The orcas fear you now - and they are food.', deep: 'The Frilled Hunters are your prey now.',
+                     abyss: 'The Abyssal Sharks are your prey now, and the Kraken lets you be.', cosmos: 'The stars are yours.' }[z.id] || '';
+      this.say(`You rule ${z.name}! +${Z.apexPoints} upgrade point. ${prey}`, 7, '#ffd166');
+      this.sfx.chomp();
+    }
+  }
+
   // The food chain of the realm you are in (the ocean, or the cosmic one after the ascension).
   realmSpecies() { return CONFIG.species.filter(sp => !!sp.cosmic === this.cosmic); }
 
@@ -122,6 +164,7 @@ class Game {
     this.sonar.echoes = []; this.sonar.models = []; this.sonar.pings = []; this.paint = [];
     const first = CONFIG.species.find(sp => sp.cosmic);
     w.diet.add(first.id); // the cosmic food chain starts here
+    w.zone = null; // the Cosmos is a new zone: you arrive weak again
     this.quests = new Quests(this);
     this.world.ensureAround(w.x, this.despawnRadius());
     this.managePopulation(true);
@@ -174,13 +217,13 @@ class Game {
 
     for (let i = 0; !this.cosmic && this.pods.length < P.pods && i < 3; i++) this.spawnPod(minD);
     // hunters: predators that come after a developed whale, more of them the further you are
-    const HU = CONFIG.hunters, ramp = clamp((this.progress() - HU.minProgress) / (1 - HU.minProgress), 0, 1);
-    if (!this.cosmic && ramp > 0) {
+    const HU = CONFIG.hunters;
+    if (!this.cosmic) {
       for (const sp of HU.list) {
-        const want = Math.round(sp.count * ramp + 0.49);
+        const want = w.zone === sp.zone ? sp.count : 0; // a zone's hunters live where you are
         let n = this.prey.filter(p => p.sp === sp).length;
         for (let tries = 0; n < want && tries < 3; tries++) {
-          const q = this.spawnPoint(sp, minD);
+          const q = this.spawnPoint(sp, minD, null);
           if (q) { this.prey.push(new Prey(sp, q.x, q.y)); n++; }
         }
       }
@@ -767,6 +810,7 @@ class Game {
         if (p.hp > 0 || !w.alive) continue;
       }
       p.dead = true; const { r, first, epGain, unlocked } = w.eat(sp); this.sfx.chomp();
+      this.gainAdapt(sp.hunter ? 'predator' : struggle ? 'fight' : 'meal');
       this.spawnGore(p.x, p.y, p.radius, this.echoClass(p.solid), p.vx, p.vy);
       this.quests.onEat(sp, !!struggle);
       const scoreText = Math.max(1, Math.round(epGain));
@@ -790,7 +834,7 @@ class Game {
     for (const s of this.swimmers) {
       if (s.dead || !w.canReach(s.x, s.y, s.radius)) continue;
       s.dead = true; this.sfx.chomp();
-      this.spawnGore(s.x, s.y, s.radius, 'edible');
+      this.spawnGore(s.x, s.y, s.radius, 'edible'); this.gainAdapt('snack');
       const SW = CONFIG.swimmers;
       w.energy = Math.min(w.stats.maxEnergy, w.energy + SW.energy); w.score += SW.score; w.eaten++;
       this.popup(s.x, s.y - 30, 'A HUMAN...', '#ffd166');
@@ -802,11 +846,28 @@ class Game {
       if (c.dead) continue;
       if (!w.canReach(c.x, c.y, c.radius) && !pointInPoly(h.x, h.y, c.poly)) continue;
       c.dead = true; this.sfx.chomp();
-      this.spawnGore(c.x, c.y, c.radius * 0.7, 'edible');
+      this.spawnGore(c.x, c.y, c.radius * 0.7, 'edible'); this.gainAdapt('snack');
       w.scavenge(c.sp, Math.max(0.1, c.meat));
       this.popup(c.x, c.y - 20, `Scavenged a dead ${c.sp.name}`, '#bfe3c0');
     }
     this.carcasses = this.carcasses.filter(c => !c.dead);
+    // ruler of the Shallows: orcas are food
+    if (w.apex.has('shallows')) {
+      const OM = CONFIG.zones.orcaMeal;
+      for (const o of this.orcas) {
+        if (o.dead || !w.canReach(o.x, o.y, 30 * o.scale)) continue;
+        o.dead = true; this.sfx.chomp(); this.spawnGore(o.x, o.y, 40 * o.scale, 'edible', o.vx, o.vy);
+        w.energy = Math.min(w.stats.maxEnergy, w.energy + OM.energy); w.mass += OM.mass; w.score += OM.ep; w.eaten++;
+        const G = CONFIG.growth, ns = 1 + (G.maxSize - 1) * Math.sqrt(Math.min(1, w.mass / G.massForMax));
+        if (ns !== w.size) { w.size = ns; w.recomputeStats(); w.updatePoly(); }
+        this.popup(o.x, o.y - 40, 'An orca!', '#ffd166');
+      }
+      if (this.orcas.some(o => o.dead)) {
+        for (const pod of this.pods) pod.members = pod.members.filter(o => !o.dead);
+        this.orcas = this.orcas.filter(o => !o.dead);
+        this.pods = this.pods.filter(pod => pod.members.length > 0);
+      }
+    }
   }
 
   // Submarines: rare; while you are wanted, perStar per star (up to maxSubs). Spawned out of sight in their depth band.
@@ -1056,6 +1117,7 @@ class Game {
     this.flash = Math.max(0, this.flash - dt * CONFIG.damageFx.decay);
     this.updateGore(dt);
     this.updateDay(dt);
+    this.soakZone(dt);
     // whatever died takes its echoes and holograms with it, instantly
     if (this.sonar.echoes.some(e => e.owner && e.owner.dead)) this.sonar.echoes = this.sonar.echoes.filter(e => !e.owner || !e.owner.dead);
     if (this.sonar.models.some(m => m.owner && m.owner.dead)) this.sonar.models = this.sonar.models.filter(m => !m.owner || !m.owner.dead);
@@ -1096,6 +1158,8 @@ class Game {
     const want = f >= 1 ? Math.ceil(K.completeAt * keys.length) : Math.round(f * K.completeAt * keys.length);
     w.krakenKnown = new Set(keys.slice(0, want));
     this.krakenFound = want > 0; this.krakenDone = f >= 1;
+    // zones: save 1 starts weak in the Shallows; later saves have ruled the upper zones and adapted partly to the next
+    CONFIG.zones.list.forEach((z, k) => { const a = clamp(f * 3 - k, 0, 1); w.adapt[z.id] = a; if (a >= 1) w.apex.add(z.id); });
     w.recomputeStats();
     const s = w.stats; w.health = s.maxHealth; w.oxygen = s.maxOxygen; w.energy = s.maxEnergy;
     w.y = 40 * w.size; w.updatePoly();

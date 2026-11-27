@@ -20,6 +20,11 @@ player has to keep clicking to build a mental image of the world.
 Lighting is depth-based: bright and readable near the surface, fading to near-black in the deep. Down there, sonar
 echoes are the only way to see.
 
+**The core loop: be weak, grow strong, go deeper, be weak again.** The ocean has three depth zones - the Shallows,
+the Deep and the Abyss (the cosmic realm is a fourth). You arrive in each one unadapted and outclassed: slower, a
+weaker bite, more damage taken, and that zone's predators hunt you. Surviving and eating there adapts you; at full
+adaptation you RULE the zone and its predators become your prey. Then the next zone down makes you weak again.
+
 **Second act - the cosmic realm.** Mythical creatures live in the deepest water. At the floor of a rare trench
 (~4500 m, far below the normal ocean - the deepest point) they gather around you and you ascend - one-way - into a godly state where the
 environment becomes outer space (an "intergalactic soup" of stars, nebulae, galaxies and planets). It is the same
@@ -90,10 +95,19 @@ game reskinned, with its own food chain of cosmic fish ending in the Star Serpen
   scale with your size, `huntSpeed` stays below your swim speed. On sonar a submarine NEVER resolves: its hologram
   is always a level-1 echo (`subs.echoLevel`, the vague dashed blob), no lock, no path (`Game.isVeiled`, shared
   with the mythical creatures). Drawn as a 3D hull (`MODELS3D.sub`).
-- **Hunters** (`CONFIG.hunters`): predators that come after a developed whale - Abyssal Shark and Frilled Hunter
-  (not food-chain species; `hunter: true`). They appear once `Game.progress()` passes `minProgress`, more of them
-  toward full progress, live in the deep, chase you below your swim speed and give up after `chaseTime`. You can
-  fight back: touching one is a struggle `fightGap` tiers up, with extra `hp`.
+- **Zones** (`CONFIG.zones`, `Game.zoneAt`/`updateZone`/`gainAdapt`/`soakZone`, `whale.adapt`, `whale.apex`): the
+  Shallows (0-600 m), the Deep (600-2000 m), the Abyss (2000 m+), and the Cosmos after the ascension. In a zone you
+  don't rule, stats are cut by `penalty` x (1 - adaptation) (speed, accel, bite down; damage taken, air use up -
+  applied in `recomputeStats` via `zonePenalty`). Adaptation grows by surviving there (full after `soak` s) and by
+  meals there (1/`meals` each; fights x`fightMult`, eating a zone predator x`predatorMult`). At 1 you rule it:
+  +`apexPoints`, and its predators become prey - orcas flee you and can be eaten (`zones.orcaMeal`), Frilled Hunters
+  (Deep) and Abyssal Sharks (Abyss) become edible (`Whale.canEat`), the Kraken stops grabbing an Abyss ruler. The HUD
+  shows a ZONE bar (green while adapting, gold when ruled) with the zone name. Saves preset adaptation per stage.
+  `tools/flow-bot.js` last run: Shallows ruled ~5 min, Deep ~15 min, Giant Squid unlocked ~28 min.
+- **Hunters** (`CONFIG.hunters`): zone predators that are not food-chain species (`hunter: true`, `zone`): Frilled
+  Hunter in the Deep, Abyssal Shark in the Abyss. They live where you are while you're in their zone, chase you below
+  your swim speed and give up after `chaseTime`. You can fight back (a struggle `fightGap` tiers up, extra `hp`); once
+  you rule their zone they flee and are simply food.
 - **The ascension** (`Game.updateAscension`, `CONFIG.ascension`): rare `trench` segments (~4500 m, no ridges; none for a new
   whale, ~1 per 70,000-110,000 units late) are the deepest point: a steep shaft only a full-grown whale with
   Pressure Tolerance upgrades can reach the bottom of (`world.depth` 12500 covers it). Within

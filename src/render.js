@@ -818,19 +818,25 @@ function drawHUD(ctx, game) {
     const lowAir = w.oxygen / s.maxOxygen < 0.25;
     // --- top left: four thin stat lines, no numbers
     const BW = 220, L = 28;
-    ctx.fillStyle = HUD.panel; roundRect(ctx, L - 12, 14, BW + 52 + 24, game.wanted > 0 ? 136 : 100, 6); ctx.fill(); // backing for contrast
+    ctx.fillStyle = HUD.panel; roundRect(ctx, L - 12, 14, BW + 52 + 24, game.wanted > 0 ? 184 : 148, 6); ctx.fill(); // backing for contrast
     bar(ctx, L, 32, BW, w.oxygen / s.maxOxygen, HUD.cyan, 'AIR', lowAir && blinkOn);
     bar(ctx, L, 54, BW, w.health / s.maxHealth, '#F2F7F8', 'HP', w.health / s.maxHealth < 0.25 && blinkOn);
     const canSprint = w.energy > s.maxEnergy * s.sprintMinEnergy;
     const fx = bar(ctx, L, 76, BW, w.energy / s.maxEnergy, canSprint ? HUD.food : '#A88B4A', 'FOOD', w.energy < s.maxEnergy * 0.12 && blinkOn);
     ctx.fillStyle = '#FFFFFF'; ctx.fillRect(fx + BW * s.sprintMinEnergy - 1, 69, 2, 14); // sprint threshold mark
     bar(ctx, L, 98, BW, (w.size - 1) / (G.maxSize - 1), '#9C8CFF', 'SIZE');
+    // zone: how adapted you are to the zone you're in; gold once you rule it
+    const zd = w.zone ? game.zoneDef(w.zone) : null, ruled = zd && w.apex.has(zd.id);
+    if (zd) {
+      bar(ctx, L, 120, BW, ruled ? 1 : (w.adapt[zd.id] || 0), ruled ? HUD.food : HUD.green, 'ZONE');
+      hudLabel(ctx, `${zd.name.toUpperCase()} · ${ruled ? 'YOU RULE IT' : 'ADAPTING - YOU ARE WEAK HERE'}`, L, 142, ruled ? HUD.food : HUD.text);
+    }
     if (game.wanted > 0) { // GTA-style wanted stars
-      hudLabel(ctx, 'WANTED', L, 124, HUD.food);
+      hudLabel(ctx, 'WANTED', L, 170, HUD.food);
       hudFont(ctx, 15, true, true); ctx.fillStyle = blinkOn ? HUD.food : HUD.warn;
-      ctx.fillText(`${'★'.repeat(game.wanted)}${'☆'.repeat(CONFIG.wanted.maxStars - game.wanted)}`, L + 66, 124);
-      ctx.fillStyle = HUD.track; ctx.fillRect(L + 66, 136, 110, 2); // time until the next star drops
-      ctx.fillStyle = HUD.food; ctx.fillRect(L + 66, 136, 110 * clamp(game.wantedT / CONFIG.wanted.decayTime, 0, 1), 2);
+      ctx.fillText(`${'★'.repeat(game.wanted)}${'☆'.repeat(CONFIG.wanted.maxStars - game.wanted)}`, L + 66, 170);
+      ctx.fillStyle = HUD.track; ctx.fillRect(L + 66, 182, 110, 2); // time until the next star drops
+      ctx.fillStyle = HUD.food; ctx.fillRect(L + 66, 182, 110 * clamp(game.wantedT / CONFIG.wanted.decayTime, 0, 1), 2);
     }
 
     // --- right edge: depth thread (0 m at the top) with your dive limit, big depth readout above the quests
@@ -877,7 +883,7 @@ function drawHUD(ctx, game) {
     if (lowAir) msgs.push(['Low air — surface!', HUD.cyan]);
     if (w.overDepth) msgs.push(['Too deep — the pressure is crushing you!', HUD.warn]);
     ctx.textAlign = 'center'; hudFont(ctx, 13, true);
-    const my0 = W > 1250 ? 34 : 140; // below the stat lines on narrow screens
+    const my0 = W > 1250 ? 34 : 200; // below the stat lines on narrow screens
     msgs.forEach(([m, c], i) => {
       const tw = ctx.measureText(m).width, yy = my0 + i * 34;
       ctx.fillStyle = HUD.panel; ctx.fillRect(W / 2 - tw / 2 - 14, yy - 14, tw + 28, 28);

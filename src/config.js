@@ -268,18 +268,35 @@ const CONFIG = {
           // torpedoes: speed x sqrt(size); they run for long enough to cover fireRange x size x torpedoReach
           torpedoSpeed: 140, torpedoTurn: 0.9, torpedoReach: 1.3, torpedoDamage: 18, echoLevel: 0.15 },
 
+  // Zones - the core loop: arrive weak, adapt, rule, dive deeper and be weak again. The ocean has three zones by depth
+  // (`top` in world units; the cosmic realm is a fourth). In a zone you are not adapted to, your stats are cut by
+  // penalty x (1 - adaptation): slower, weaker bite, more damage taken and air used - and the zone's predators hunt
+  // you. Surviving there adapts you slowly (full after `soak` s) and every meal in the zone adapts you (1/meals; fights x fightMult, eating a zone predator x predatorMult). At full
+  // adaptation you RULE the zone: +apexPoints upgrade point, and its predators become your prey (orcas in the Shallows,
+  // Frilled Hunters in the Deep, Abyssal Sharks in the Abyss; the Kraken stops grabbing an Abyss ruler).
+  zones: {
+    list: [
+      { id: 'shallows', name: 'the Shallows', top: 0,    meals: 18, soak: 240, penalty: 0.25 },
+      { id: 'deep',     name: 'the Deep',     top: 1500, meals: 16, soak: 270, penalty: 0.3 },
+      { id: 'abyss',    name: 'the Abyss',    top: 5000, meals: 18, soak: 300, penalty: 0.35 },
+    ],
+    cosmic: { id: 'cosmos', name: 'the Cosmos', meals: 18, soak: 300, penalty: 0.35 },
+    fightMult: 2, predatorMult: 3, apexPoints: 1,
+    orcaMeal: { energy: 140, mass: 90, ep: 40 }, // eating an orca once you rule the Shallows
+  },
+
   // Hunters: predators that come after a developed whale (not part of the food chain). They appear once
   // Game.progress() passes minProgress and grow more common up to full progress (count x ramp). They live in the
   // deep, chase you (chaseSpeed stays below a full-grown whale's swim speed, so you can always get away) and give
   // up after chaseTime. You can fight back: a hunter is a struggle fight `fightGap` tiers up, with extra `hp`.
   hunters: {
-    minProgress: 0.4,
+    minProgress: 0, // (hunters now belong to zones: they hunt you in their zone until you rule it)
     list: [
-      { id: 'abyssshark', name: 'Abyssal Shark', shape: 'shark', length: 560, color: '#363c44', minSize: 3, hunter: true, fightGap: 2, hp: 200,
-        mass: 140, ep: 80, energy: 180, depthMin: 2500, depthMax: 6800, count: 2, speed: 40, fleeSpeed: 60,
+      { id: 'abyssshark', name: 'Abyssal Shark', shape: 'shark', length: 560, color: '#363c44', minSize: 3, hunter: true, fightGap: 2, hp: 200, zone: 'abyss',
+        mass: 140, ep: 80, energy: 180, depthMin: 5200, depthMax: 7200, count: 2, speed: 40, fleeSpeed: 60,
         attack: { damage: 20, cooldown: 1.3, range: 1000, chaseSpeed: 62, chaseTime: 8, rest: 25 } },
-      { id: 'frilledhunter', name: 'Frilled Hunter', shape: 'serpent', length: 700, color: '#2a3638', minSize: 3, hunter: true, fightGap: 2, hp: 160,
-        mass: 120, ep: 70, energy: 150, depthMin: 3500, depthMax: 7200, count: 2, speed: 35, fleeSpeed: 55,
+      { id: 'frilledhunter', name: 'Frilled Hunter', shape: 'serpent', length: 700, color: '#2a3638', minSize: 3, hunter: true, fightGap: 1, hp: 120, zone: 'deep',
+        mass: 120, ep: 70, energy: 150, depthMin: 1700, depthMax: 4800, count: 1, speed: 35, fleeSpeed: 55,
         attack: { damage: 15, cooldown: 1.0, range: 800, chaseSpeed: 58, chaseTime: 7, rest: 20 } },
     ],
   },

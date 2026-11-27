@@ -16,7 +16,7 @@ const res=await p.evaluate((MIN)=>{game.reset(1);game.state='playing';const w=ga
   if(tgt&&Math.hypot(tgt.x-w.x,tgt.y-w.y)<500*w.size&&w.energy>w.stats.maxEnergy*0.5)I.sprint=true;
   game.update(dt);
   const nt=w.topSpecies().id;if(nt!==lastTop){const tt=game.time;log.push({species:w.topSpecies().name,atMin:+(tt/60).toFixed(1),stepMin:+((tt-lastT)/60).toFixed(1),size:+w.size.toFixed(2)});lastTop=nt;lastT=tt;}
-  if(f%(60*30*5)===0)sizeAt[Math.round(game.time/60)+'min']=+w.size.toFixed(2);
+  if(f%(60*30*5)===0)sizeAt[Math.round(game.time/60)+'min']=+w.size.toFixed(2)+' '+(w.zone||'')+' '+[...w.apex].join('+');
  }
  return {log,end:{min:MIN,top:w.topSpecies().name,eatenOfTop:w.eatenBy[w.topSpecies().id]||0,size:+w.size.toFixed(2),deaths,why},sizeAt};},MIN);
 console.log(JSON.stringify(res,null,1));console.log('errors:',errs.length?errs.slice(0,3):'none');await b.close();})()

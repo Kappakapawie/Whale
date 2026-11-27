@@ -116,7 +116,7 @@ class Kraken {
     this.updatePolys();
 
     // Arms grab whatever they touch: damage + drag toward the mantle.
-    if (!w.alive || d > K.length * 1.2 + 300 * w.size) return;
+    if (!w.alive || d > K.length * 1.2 + 300 * w.size || w.apex.has('abyss')) return; // a ruler of the Abyss is left alone
     let grabbed = false;
     for (const arm of this.armWorld) {
       for (let k = 2; k < arm.pts.length && !grabbed; k++) {
