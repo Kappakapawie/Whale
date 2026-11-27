@@ -37,7 +37,8 @@ game reskinned, with its own food chain of cosmic fish ending in the Star Serpen
   Low familiarity means wrong size, angle and position (`maxSizeError` etc.). From `model.full3d` (0.6) the hologram
   is the creature's real 3D model (`drawCreature3D` with `holo`, a glowing wireframe mesh) frozen in the 3D pose it
   had when the sound hit (`pose` on the snapshot); echo-locked ones use the live pose. The model is a **snapshot** from when
-  the sound hit (it fades like an echo) and never tracks the creature live — that would leak information. It does
+  the sound hit (it fades like an echo) and never tracks the creature live — that would leak information. Without the Echo Lock upgrade it is
+  a completely still image (no gliding, no swim motion). With Echo Lock learned it does
   keep gliding along the heading the creature had at the hit (dead reckoning, `sonar.driftMax` s; the echo lines
   too), so it doesn't freeze until the next click; when a newer echo of that creature arrives the older lines give way.
   Scan % per species is shown in the food chain panel. Once a species is fully learned its hit lines are no longer

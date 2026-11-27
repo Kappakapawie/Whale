@@ -639,14 +639,15 @@ function drawModels(ctx, game, px) {
     const col = (al) => `rgba(${c[0]},${c[1]},${c[2]},${Math.min(1, al).toFixed(3)})`;
     if (m.kraken) { drawKrakenModel(ctx, m, col, Math.pow(1 - age, 1.2) * 0.9, px); continue; }
     // the snapshot glides along the heading it had at the hit (dead reckoning) until a newer one replaces it
-    const dr = m.lock ? 0 : Math.min(t - m.t, S.driftMax), mx = m.x + (m.vx || 0) * dr, my = m.y + (m.vy || 0) * dr;
+    const canGlide = game.whale.stats.lockTime > 0; // only with the Echo Lock upgrade do images follow movement
+    const dr = m.lock || !canGlide ? 0 : Math.min(t - m.t, S.driftMax), mx = m.x + (m.vx || 0) * dr, my = m.y + (m.vy || 0) * dr;
     const mpath = m.path && dr ? m.path.map(q => [q[0] + (m.vx || 0) * dr, q[1] + (m.vy || 0) * dr]) : m.path;
     // well-known creatures: the hologram is their 3D model, in the pose they had when the sound hit (live when locked)
     const pose = m.lock ? m.owner.v3 : m.pose;
     if (CONFIG.models3d.enabled && pose && m.f >= S.model.full3d && MODELS3D[m.shape]) {
       // position and pose stay frozen (no live tracking) but the body keeps its swim cycle, so the hologram swims in place
       const ghost = { x: mx, y: my, angle: m.angle, scale: m.scale, shapeName: m.shape, vx: 0, vy: 0,
-                      v3: { ...pose, t, phase: pose.phase + (m.lock ? 0 : (t - m.t) * 3), amp: Math.max(pose.amp || 0.5, 0.6) } };
+                      v3: { ...pose, t, phase: pose.phase + (m.lock || !canGlide ? 0 : (t - m.t) * 3), amp: Math.max(pose.amp || 0.5, 0.6) } };
       const ha = a * (0.45 + 0.55 * (m.f - S.model.full3d) / (1 - S.model.full3d));
       if (drawCreature3D(ctx, ghost, t, { frozen: true, holo: c, holoAlpha: ha })) {
         if (mpath) drawPath(ctx, mpath, col, a, px);
@@ -750,7 +751,8 @@ function drawSonar(ctx, game, px) {
     if (a < 0.02) continue;
     const c = S.colorCode ? S.colors[e.kind] : S.colors.terrain;
     const rgb = `${c[0]},${c[1]},${c[2]}`;
-    const dr = Math.min(t - e.t, S.driftMax), ox = (e.vx || 0) * dr, oy = (e.vy || 0) * dr;
+    const dr = game.whale.stats.lockTime > 0 ? Math.min(t - e.t, S.driftMax) : 0; // without Echo Lock: a still image
+    const ox = (e.vx || 0) * dr, oy = (e.vy || 0) * dr;
     if (ox || oy) { ctx.save(); ctx.translate(ox, oy); }
     if (e.line) {
       ctx.strokeStyle = `rgba(${rgb},${(a * 0.25).toFixed(3)})`; ctx.lineWidth = 7 * px;
