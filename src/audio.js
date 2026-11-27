@@ -83,5 +83,11 @@ class Sfx {
     this.noise(0.22, 0.05, 520, 0.6, 0.16 * k, 0, 'lowpass', 'danger', 0.006);
     this.tone(150, 95, 0.18, 0.07 * k, 'sine', 0.01, 'danger', 0.01);
   }
+  // Breach Strike hitting a ship: a heavy wooden crunch (danger channel, kept soft like the other hits)
+  crash() {
+    this.noise(0.45, 0.12, 260, 0.8, 0.32, 0, 'lowpass', 'danger', 0.005);
+    this.tone(90, 45, 0.4, 0.2, 'triangle', 0, 'danger', 0.01);
+    this.noise(0.25, 0.05, 1400, 1.2, 0.08, 0.05, 'bandpass', 'danger');
+  }
   breath() { this.noise(0.6, 0.18, 900, 0.5, 0.5, 0, 'lowpass'); }
 }

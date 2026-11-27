@@ -756,6 +756,47 @@ class Game {
     this.carcasses = this.carcasses.filter(c => !c.dead);
   }
 
+  // ------------------------------------------------------------ Breach Strike (stat breachPower)
+  // Leaving the water going up launches you (with the upgrade); while breaching you can smash whaling ships.
+  updateBreach(dt, prevY) {
+    const w = this.whale, s = w.stats, B = CONFIG.breach, lv = s.breachPower;
+    this.breachCool = Math.max(0, (this.breachCool || 0) - dt);
+    if (this.cosmic || !w.alive) return;
+    if (lv > 0 && prevY > 0 && w.y <= 0 && w.vy < -B.minExitSpeed && this.breachCool <= 0) {
+      w.vy -= B.boost * (1 + (lv - 1) * B.boostPerLevel) * Math.sqrt(w.size);
+      this.breachCool = B.cooldown;
+      this.splash(w.x, w.size, 50);
+    }
+    for (const sh of this.ships) {
+      if (sh.sinking || sh.hitT > 0 || Math.abs(sh.x - w.x) > 400 * w.size) continue;
+      const touching = w.poly.some(p => pointInPoly(p[0], p[1], sh.poly)) || sh.poly.some(p => pointInPoly(p[0], p[1], w.poly));
+      if (!touching) continue;
+      const sp = Math.hypot(w.vx, w.vy);
+      sh.hitT = B.hitCooldown;
+      if (lv <= 0 || sp < B.minImpact) { w.vx *= 0.5; w.vy = Math.abs(w.vy) * 0.3; continue; } // just a bump
+      const dmg = B.damage * lv * clamp(sp / B.refSpeed, 0.5, 2);
+      sh.hp -= dmg; w.vx *= 0.6; w.vy *= 0.4;
+      this.sfx.crash(); this.splash(sh.x, w.size, 30);
+      this.popup(sh.x, sh.y - 90, `-${Math.round(dmg)}`, '#ffd166');
+      if (sh.hp <= 0) {
+        sh.sinking = true;
+        this.popup(sh.x, sh.y - 120, 'SHIP SUNK', '#ffd166');
+        for (let i = 0; i < 18; i++) this.gore.chunks.push({ x: sh.x + rand(-100, 100), y: rand(-20, 10), vx: rand(-80, 80), vy: rand(-160, -20),
+          r: rand(5, 14), rot: rand(0, TAU), spin: rand(-4, 4), age: 0, life: CONFIG.gore.chunkLife, kind: 'terrain',
+          shape: [[1, 0.3], [-1, 0.3], [-1, -0.3], [1, -0.3]], color: ['#5a4632', '#3b2f2f', '#d8d4c8'][randInt(0, 2)] }); // wreckage
+        this.raiseWanted();
+      }
+    }
+  }
+
+  // White water thrown up where something breaks the surface.
+  splash(x, z, n) {
+    for (let i = 0; i < n; i++) {
+      this.particles.push({ x: x + rand(-60, 60) * z, y: 0, vx: rand(-120, 120) * z, vy: rand(-380, -120) * Math.sqrt(z),
+        life: rand(0.5, 1.1), max: 1.1, size: rand(2, 4) * z });
+    }
+  }
+
   // ------------------------------------------------------------ paint sense (the cosmic realm's sonar)
   throwPaint(type, x, y, aim) {
     const P = CONFIG.paint, S = CONFIG.sonar, w = this.whale, s = w.stats;
@@ -869,7 +910,9 @@ class Game {
     this.time += dt;
     const w = this.whale;
     const sizeBefore = w.size;
+    const prevY = w.y;
     w.update(dt, this, this.input);
+    this.updateBreach(dt, prevY);
     if (this.input.beamHeld) this.fireSonar('beam');
     if (this.input.burstHeld) this.fireSonar('burst');
 
@@ -888,6 +931,7 @@ class Game {
     this.carcasses = this.carcasses.filter(c => !c.dead);
     this.updateWanted(dt);
     for (const s of this.ships) s.update(dt, this);
+    this.ships = this.ships.filter(s => !s.dead);
     for (const h of this.harpoons) h.update(dt, this);
     this.harpoons = this.harpoons.filter(h => !h.dead);
     this.sonar.update(dt, this.time);

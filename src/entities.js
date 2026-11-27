@@ -667,11 +667,21 @@ class Ship {
     this.homeX = x;       // patrols around its home while it has no idea where you are
     this.offset = offset; // fan out from the predicted surfacing point so several ships cover more water
     this.cool = 0; this.bob = rand(0, 10);
+    this.hp = CONFIG.ship.hp; this.hitT = 0; this.sinking = false; this.sinkT = 0; this.tilt = 0;
     this.solid = makeSolid('human', [], this);
     this.update(0, null);
   }
   update(dt, game) {
     const c = CONFIG.ship, heat = game ? game.humanHeat : 0;
+    this.hitT -= dt;
+    if (this.sinking) { // smashed by a Breach Strike: lists over and goes down, no more harpoons
+      this.sinkT += dt; this.tilt = Math.min(0.9, this.sinkT * 0.35) * this.dir;
+      this.y = 4 + this.sinkT * this.sinkT * 6;
+      this.poly = transformShape(SHAPES.ship, this.x, this.y, (this.dir > 0 ? 0 : Math.PI) + this.tilt);
+      this.solid.poly = this.poly; refreshSolid(this.solid);
+      if (this.sinkT > CONFIG.breach.sinkTime) this.dead = true;
+      return;
+    }
     const speed = lerp(c.speed, c.maxSpeed, heat);
     const intel = game && game.whaleIntel;
     if (intel && heat > 0) {

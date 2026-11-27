@@ -483,10 +483,16 @@ function updateCursor(game) {
 function drawShip(ctx, s) {
   ctx.fillStyle = '#3b2f2f'; tracePoly(ctx, s.poly); ctx.fill();
   const d = s.dir;
+  ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(s.tilt || 0); ctx.translate(-s.x, -s.y); // a sinking ship lists over
   ctx.fillStyle = '#d8d4c8'; ctx.fillRect(s.x - 50 * d - (d < 0 ? 70 : 0), s.y - 48, 70, 34);
   ctx.fillStyle = '#9b2b1f'; ctx.fillRect(s.x - 30 * d - 6, s.y - 70, 12, 22);
   ctx.strokeStyle = '#2a2222'; ctx.lineWidth = 4;
   ctx.beginPath(); ctx.moveTo(s.x + 100 * d, s.y - 16); ctx.lineTo(s.x + 125 * d, s.y - 36); ctx.stroke();
+  ctx.restore();
+  if (!s.sinking && s.hp < CONFIG.ship.hp) { // damaged: a thin hull bar over the ship
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(s.x - 60, s.y - 96, 120, 6);
+    ctx.fillStyle = '#ffd166'; ctx.fillRect(s.x - 60, s.y - 96, 120 * Math.max(0, s.hp) / CONFIG.ship.hp, 6);
+  }
 }
 
 // Cross-sections of a shape: for evenly spaced x along the body, the top and bottom of the outline.
@@ -691,9 +697,9 @@ function drawHUD(ctx, game) {
     if (game.wanted > 0) { // GTA-style wanted stars
       hudLabel(ctx, 'WANTED', L, 108, HUD.food);
       hudFont(ctx, 15, true, true); ctx.fillStyle = blinkOn ? HUD.food : HUD.warn;
-      ctx.fillText(`${'★'.repeat(game.wanted)}${'☆'.repeat(CONFIG.wanted.maxStars - game.wanted)}`, L + 48, 108);
-      ctx.fillStyle = HUD.track; ctx.fillRect(L + 48, 120, 110, 2); // time until the next star drops
-      ctx.fillStyle = HUD.food; ctx.fillRect(L + 48, 120, 110 * clamp(game.wantedT / CONFIG.wanted.decayTime, 0, 1), 2);
+      ctx.fillText(`${'★'.repeat(game.wanted)}${'☆'.repeat(CONFIG.wanted.maxStars - game.wanted)}`, L + 66, 108);
+      ctx.fillStyle = HUD.track; ctx.fillRect(L + 66, 120, 110, 2); // time until the next star drops
+      ctx.fillStyle = HUD.food; ctx.fillRect(L + 66, 120, 110 * clamp(game.wantedT / CONFIG.wanted.decayTime, 0, 1), 2);
     }
 
     // --- right edge: depth thread (0 m at the top) with your dive limit, big depth readout above the quests

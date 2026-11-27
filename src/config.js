@@ -80,6 +80,7 @@ const CONFIG = {
     pressureDamage: 6,      // health/s when deeper than maxDepth, growing the deeper you go
     sprintMinEnergy: 1 / 3,
     lockTime: 0,            // Echo Lock seconds (upgrade): learned creatures hit twice by the beam stay tracked
+    breachPower: 0,         // Breach Strike level (upgrade): leap boost out of the water + damage to ships you hit
     surfaceSpeedMult: 0.3,  // near the surface (breathing) you are slow: getting air is a risk // can only sprint while energy is above this fraction of max (so ~9 s of sprint per full bar)
     damageTaken: 1,
     bite: 10,               // damage per bite against prey with hp (giant squid)
@@ -111,6 +112,7 @@ const CONFIG = {
     { id: 'echolock',   name: 'Echo Lock',       desc: 'Beam a fully learned creature twice: its model follows it (+3 s)', stat: 'lockTime', add: 3, max: 3, cost: 6 },
     { id: 'surface',    name: 'Surface Agility', desc: '+30% speed while at the surface', stat: 'surfaceSpeedMult', mult: 1.3, max: 3, cost: 5 },
     { id: 'pressure',   name: 'Pressure Tolerance', desc: '+24% max dive depth', stat: 'maxDepth', mult: 1.24, max: 3, cost: 6 },
+    { id: 'breach',     name: 'Breach Strike',   desc: 'Leap out of the water with force and smash whaling ships', stat: 'breachPower', add: 1, max: 3, cost: 6 },
     { id: 'memory',     name: 'Echo Memory',     desc: '+40% echo duration',    stat: 'echoLifeMult', mult: 1.4, max: 3, cost: 4 },
   ],
 
@@ -301,7 +303,16 @@ const CONFIG = {
   // With heat they get faster, more numerous, harpoon more often and further, and track you better:
   // every time you surface (or are spotted near the surface, or your clicks are heard) they learn your position
   // and heading, then sail to where they predict you will come up next.
+  // Breach Strike (stat breachPower, upgrade 'breach'). Crossing the surface going up (faster than minExitSpeed)
+  // launches you: extra upward speed = boost x (1 + (level-1) x boostPerLevel) x sqrt(size), at most once per
+  // cooldown s. While breaching, hitting a ship (your body touches its hull, speed > minImpact) deals
+  // damage x level x clamp(speed / refSpeed, 0.5, 2) and slows you down; each ship can be hit once per hitCooldown.
+  // A sunk ship raises your WANTED level. Without the upgrade you just bump off ships.
+  breach: { minExitSpeed: 12, boost: 380, boostPerLevel: 0.5, cooldown: 3, minImpact: 60, damage: 28, refSpeed: 400,
+            hitCooldown: 0.8, sinkTime: 6 },
+
   ship: {
+    hp: 100, // Breach Strike damage sinks ships
     speed: 35, maxSpeed: 115, patrolRange: 1500,
     heatRampTime: 300, maxShips: 3, fanOut: 500,
     harpoonRange: 650, maxHarpoonRange: 1000, harpoonDepth: 260,
