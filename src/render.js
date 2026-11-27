@@ -15,12 +15,7 @@ function buildGradients(ctx) {
   [[0, '#b3a26c'], [700, '#6e6649'], [1600, '#3b3d36'], [D, '#22262a']]
     .forEach(([y, c]) => g.terrain.addColorStop(y / D, c));
 
-  g.dark = ctx.createLinearGradient(0, 0, 0, D);
-  for (let i = 0; i <= 40; i++) {
-    const f = (i / 40) ** 2, y = f * D;
-    const a = Math.min(CONFIG.light.maxDarkness, 1 - lightAt(y));
-    g.dark.addColorStop(f, `rgba(0,3,10,${a.toFixed(3)})`);
-  }
+  g.dark = buildDark(ctx); g.darkK = DAYLIGHT.k;
 
   g.cosmicRock = ctx.createLinearGradient(0, 4000, 0, D + 800);
   g.cosmicRock.addColorStop(0, '#2a1f4a'); g.cosmicRock.addColorStop(0.4, '#171230'); g.cosmicRock.addColorStop(1, '#08060f');
@@ -28,6 +23,81 @@ function buildGradients(ctx) {
   g.ray = ctx.createLinearGradient(0, 0, 0, 700);
   g.ray.addColorStop(0, 'rgba(255,255,230,0.14)'); g.ray.addColorStop(1, 'rgba(255,255,230,0)');
   return g;
+}
+
+// The darkness overlay follows the time of day (lightAt includes the daylight): cooler and darker at night.
+function buildDark(ctx) {
+  const D = CONFIG.world.depth, g = ctx.createLinearGradient(0, 0, 0, D), n = 1 - DAYLIGHT.k;
+  for (let i = 0; i <= 40; i++) {
+    const f = (i / 40) ** 2, y = f * D;
+    const a = Math.min(CONFIG.light.maxDarkness, 1 - lightAt(y));
+    g.addColorStop(f, `rgba(${Math.round(2 * n)},${Math.round(3 + 6 * n)},${Math.round(10 + 22 * n)},${a.toFixed(3)})`);
+  }
+  return g;
+}
+
+// Sky (screen space, behind everything): a gradient through night, dawn, day and dusk, the sun and moon on their
+// arcs, stars at night and drifting clouds tinted by the time of day.
+const SKY_KEYS = [ // [dayT, top colour, horizon colour]
+  [0.00, [6, 10, 28], [18, 30, 62]], [0.20, [16, 18, 52], [70, 50, 96]], [0.26, [54, 70, 130], [250, 160, 110]],
+  [0.33, [70, 130, 200], [235, 205, 170]], [0.50, [64, 140, 214], [205, 232, 246]], [0.67, [70, 120, 190], [240, 200, 160]],
+  [0.74, [60, 50, 110], [255, 130, 80]], [0.80, [22, 22, 60], [90, 50, 90]], [1.00, [6, 10, 28], [18, 30, 62]]];
+function skyColors(t) {
+  for (let i = 1; i < SKY_KEYS.length; i++) if (t <= SKY_KEYS[i][0]) {
+    const A = SKY_KEYS[i - 1], B = SKY_KEYS[i], f = (t - A[0]) / (B[0] - A[0]);
+    return [0, 1].map(j => A[j + 1].map((v, k) => Math.round(lerp(v, B[j + 1][k], f))));
+  }
+  return [SKY_KEYS[0][1], SKY_KEYS[0][2]];
+}
+function drawSky(ctx, game, W, H) {
+  const z = game.cam.z, horizon = (0 - game.cam.y) * z; // screen y of the water surface
+  if (horizon <= 0) return;
+  const hy = Math.min(horizon, H), [top, hor] = skyColors(game.dayT), k = DAYLIGHT.k, t = game.time;
+  const g = ctx.createLinearGradient(0, horizon - CONFIG.world.skyHeight * z, 0, horizon);
+  g.addColorStop(0, `rgb(${top})`); g.addColorStop(1, `rgb(${hor})`);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, hy);
+  const band = Math.min(horizon, H * 0.6);
+  // stars
+  if (k < 0.8) {
+    for (let i = 0; i < 140; i++) {
+      const sx = ((hash(i, 3) * W * 1.5 - game.cam.x * z * 0.02) % W + W) % W, sy = horizon - hash(i, 7) * band;
+      if (sy < 0) continue;
+      ctx.fillStyle = `rgba(230,236,255,${((1 - k / 0.8) * (0.4 + 0.5 * Math.sin(t * (1 + hash(i, 9) * 2) + i))).toFixed(3)})`;
+      ctx.fillRect(sx, sy, 1.5, 1.5);
+    }
+  }
+  // sun and moon on opposite arcs across the screen
+  const arc = (phase, el) => [W * (0.1 + 0.8 * phase), horizon - (0.12 + 0.55 * Math.max(0, el)) * band]; // stays below the HUD
+  const sunPhase = ((game.dayT - 0.25 + 1) % 1) * 2, moonPhase = ((game.dayT - 0.75 + 1) % 1) * 2;
+  if (game.sunElev > -0.1 && sunPhase <= 1) {
+    const [x, y] = arc(sunPhase, game.sunElev), warm = 1 - clamp(game.sunElev * 2, 0, 1);
+    const sg = ctx.createRadialGradient(x, y, 0, x, y, 90);
+    sg.addColorStop(0, `rgba(255,${Math.round(240 - 80 * warm)},${Math.round(200 - 120 * warm)},0.9)`); sg.addColorStop(0.2, `rgba(255,${Math.round(220 - 90 * warm)},150,0.45)`);
+    sg.addColorStop(1, 'rgba(255,200,140,0)');
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(x, y, 90, 0, TAU); ctx.fill();
+    ctx.fillStyle = `rgb(255,${Math.round(248 - 60 * warm)},${Math.round(225 - 110 * warm)})`; ctx.beginPath(); ctx.arc(x, y, 16, 0, TAU); ctx.fill();
+  }
+  if (-game.sunElev > -0.1 && moonPhase <= 1) {
+    const [x, y] = arc(moonPhase, -game.sunElev);
+    const mg = ctx.createRadialGradient(x, y, 0, x, y, 60);
+    mg.addColorStop(0, 'rgba(210,225,255,0.35)'); mg.addColorStop(1, 'rgba(210,225,255,0)');
+    ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(x, y, 60, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#e6ecf8'; ctx.beginPath(); ctx.arc(x, y, 11, 0, TAU); ctx.fill();
+    ctx.fillStyle = `rgb(${top})`; ctx.beginPath(); ctx.arc(x + 5, y - 3, 10, 0, TAU); ctx.fill(); // crescent
+  }
+  // clouds: soft puffs drifting with the wind, tinted by the time of day
+  const dusk = 1 - Math.abs(game.sunElev) * 2.5, cell = 420, ox = game.cam.x * z * 0.25 - t * 6;
+  const cr = Math.round(lerp(lerp(60, 250, k), 255, clamp(dusk, 0, 1) * 0.6)), cgc = Math.round(lerp(lerp(70, 250, k), 170, clamp(dusk, 0, 1) * 0.6)), cb = Math.round(lerp(lerp(110, 255, k), 150, clamp(dusk, 0, 1) * 0.6));
+  for (let gx = Math.floor(ox / cell) - 1; gx <= Math.floor((ox + W) / cell) + 1; gx++) {
+    const h = hash(gx, 21); if (h > 0.8) continue;
+    const cx = gx * cell - ox + h * 200, cy = horizon - (0.35 + 0.5 * hash(gx, 33)) * band, sc = 0.6 + h;
+    if (cy < -60) continue;
+    for (let p = 0; p < 5; p++) {
+      const px2 = cx + (p - 2) * 34 * sc, py = cy + Math.sin(p * 1.7 + gx) * 8 * sc, r = (26 + 14 * Math.sin(p + gx)) * sc;
+      ctx.fillStyle = `rgba(${cr},${cgc},${cb},${(0.16 + 0.22 * k).toFixed(3)})`;
+      ctx.beginPath(); ctx.ellipse(px2, py, r * 1.5, r * 0.75, 0, 0, TAU); ctx.fill();
+    }
+  }
 }
 
 function drawGame(game) {
@@ -47,12 +117,19 @@ function drawGame(game) {
   if (game.cosmic) {
     ctx.setTransform(1, 0, 0, 1, 0, 0); drawCosmos(ctx, game, W, H, t); ctx.setTransform(z, 0, 0, z, -cx * z, -cy * z);
   } else {
-  if (y0 < 0) { ctx.fillStyle = game.grad.sky; ctx.fillRect(x0, y0, VW, -y0); drawCoastLand(ctx, x0, x1, t, game.world); }
+  if (y0 < 0) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0); drawSky(ctx, game, W, H); ctx.setTransform(z, 0, 0, z, -cx * z, -cy * z);
+    drawCoastLand(ctx, x0, x1, t, game.world);
+  }
   ctx.fillStyle = game.grad.water; ctx.fillRect(x0, wy, VW, y1 - wy);
+  // time of day in the water: warm sunlight by day, a cool blue cast at night
+  const nk = 1 - DAYLIGHT.k;
+  ctx.fillStyle = `rgba(${Math.round(lerp(255, 10, nk))},${Math.round(lerp(170, 30, nk))},${Math.round(lerp(90, 90, nk))},${(0.05 + 0.28 * nk).toFixed(3)})`;
+  ctx.fillRect(x0, wy, VW, y1 - wy);
 
   // --- God rays near the surface
-  if (y0 < 700) {
-    ctx.fillStyle = game.grad.ray;
+  if (y0 < 700 && DAYLIGHT.k > 0.05) {
+    ctx.globalAlpha = DAYLIGHT.k; ctx.fillStyle = game.grad.ray;
     const k0 = Math.floor(x0 / 320) - 2, k1 = Math.ceil(x1 / 320) + 1;
     for (let k = k0; k <= k1; k++) {
       const h = hash(k, 7); if (h < 0.35) continue;
@@ -60,6 +137,7 @@ function drawGame(game) {
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + w, 0); ctx.lineTo(x + w + 260, 700); ctx.lineTo(x + 180, 700);
       ctx.closePath(); ctx.fill();
     }
+    ctx.globalAlpha = 1;
   }
 
   drawWaterShading(ctx, game, x0, x1, y0, y1, px, t);
@@ -136,7 +214,10 @@ function drawGame(game) {
 
   // ================= DARKNESS =================
   if (game.cosmic) { ctx.fillStyle = `rgba(2,0,12,${CONFIG.cosmic.darkness})`; ctx.fillRect(x0, y0, VW, VH); }
-  else { ctx.fillStyle = game.grad.dark; ctx.fillRect(x0, wy, VW, y1 - wy); }
+  else {
+    if (Math.abs(DAYLIGHT.k - game.grad.darkK) > 0.01) { game.grad.dark = buildDark(ctx); game.grad.darkK = DAYLIGHT.k; }
+    ctx.fillStyle = game.grad.dark; ctx.fillRect(x0, wy, VW, y1 - wy);
+  }
 
   // Faint self-outline so the player can find themself in the dark
   const selfA = game.cosmic ? 0.3 : 0.5 * (1 - lightAt(w.y));
@@ -361,7 +442,7 @@ function drawWaterShading(ctx, game, x0, x1, y0, y1, px, t) {
         const cx = gx * cs + h * cs + Math.sin(t * 0.7 + h * 12) * 10;
         const cy = gy * cs + hash(gx, gy + 31) * cs + Math.cos(t * 0.5 + h * 7) * 6;
         const fl = 0.5 + 0.5 * Math.sin(t * (1.2 + h) + h * 40);
-        const a = fl * 0.09 * (1 - cy / CD);
+        const a = fl * 0.09 * (1 - cy / CD) * DAYLIGHT.k; // no sun, no caustics
         if (a < 0.01) continue;
         ctx.fillStyle = `rgba(200,240,255,${a.toFixed(3)})`;
         ctx.beginPath(); ctx.ellipse(cx, cy, 9 + h * 12, 3 + h * 4, h * 3, 0, TAU); ctx.fill();
@@ -701,12 +782,24 @@ function hudLabel(ctx, text, x, y, color = HUD.label) {
   ctx.fillText(text, x, y);
   if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
 }
-// thin stat line: LABEL ─────────
+// stat bar: LABEL  [▓▓▓▓▓▓▓░░░]  - a clear rounded bar with a soft glow, no numbers
+function roundRect(ctx, x, y, w, h, r) {
+  r = Math.min(r, h / 2, w / 2); ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
 function bar(ctx, x, y, w, frac, color, label, warn) {
-  hudLabel(ctx, label, x, y, warn ? HUD.warn : HUD.label);
-  const bx = x + 48;
-  ctx.fillStyle = HUD.track; ctx.fillRect(bx, y - 2, w, 4);
-  ctx.fillStyle = warn ? HUD.warn : color; ctx.fillRect(bx, y - 2, w * clamp(frac, 0, 1), 4);
+  hudFont(ctx, 12, true, true); ctx.fillStyle = warn ? HUD.warn : HUD.text;
+  if ('letterSpacing' in ctx) ctx.letterSpacing = '1.5px';
+  ctx.fillText(label, x, y);
+  if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+  const bx = x + 52, h = 8, f = clamp(frac, 0, 1);
+  ctx.fillStyle = 'rgba(255,255,255,0.10)'; roundRect(ctx, bx, y - h / 2, w, h, 4); ctx.fill();
+  ctx.strokeStyle = 'rgba(207,239,245,0.25)'; ctx.lineWidth = 1; roundRect(ctx, bx + 0.5, y - h / 2 + 0.5, w - 1, h - 1, 4); ctx.stroke();
+  if (f > 0.01) {
+    ctx.save(); ctx.shadowColor = warn ? HUD.warn : color; ctx.shadowBlur = 8;
+    ctx.fillStyle = warn ? HUD.warn : color; roundRect(ctx, bx, y - h / 2, Math.max(h, w * f), h, 4); ctx.fill(); ctx.restore();
+  }
   return bx;
 }
 
@@ -722,19 +815,20 @@ function drawHUD(ctx, game) {
   if (game.state !== 'title') {
     const lowAir = w.oxygen / s.maxOxygen < 0.25;
     // --- top left: four thin stat lines, no numbers
-    const BW = 200, L = 28;
-    bar(ctx, L, 30, BW, w.oxygen / s.maxOxygen, HUD.cyan, 'AIR', lowAir && blinkOn);
-    bar(ctx, L, 48, BW, w.health / s.maxHealth, HUD.ink, 'HP', w.health / s.maxHealth < 0.25 && blinkOn);
+    const BW = 220, L = 28;
+    ctx.fillStyle = HUD.panel; roundRect(ctx, L - 12, 14, BW + 52 + 24, game.wanted > 0 ? 136 : 100, 6); ctx.fill(); // backing for contrast
+    bar(ctx, L, 32, BW, w.oxygen / s.maxOxygen, HUD.cyan, 'AIR', lowAir && blinkOn);
+    bar(ctx, L, 54, BW, w.health / s.maxHealth, '#F2F7F8', 'HP', w.health / s.maxHealth < 0.25 && blinkOn);
     const canSprint = w.energy > s.maxEnergy * s.sprintMinEnergy;
-    const fx = bar(ctx, L, 66, BW, w.energy / s.maxEnergy, canSprint ? HUD.food : '#A88B4A', 'FOOD', w.energy < s.maxEnergy * 0.12 && blinkOn);
-    ctx.fillStyle = HUD.ink; ctx.fillRect(fx + BW * s.sprintMinEnergy - 0.5, 61, 1, 10); // sprint threshold mark
-    bar(ctx, L, 84, BW, (w.size - 1) / (G.maxSize - 1), 'rgba(127,227,240,0.55)', 'SIZE');
+    const fx = bar(ctx, L, 76, BW, w.energy / s.maxEnergy, canSprint ? HUD.food : '#A88B4A', 'FOOD', w.energy < s.maxEnergy * 0.12 && blinkOn);
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(fx + BW * s.sprintMinEnergy - 1, 69, 2, 14); // sprint threshold mark
+    bar(ctx, L, 98, BW, (w.size - 1) / (G.maxSize - 1), '#9C8CFF', 'SIZE');
     if (game.wanted > 0) { // GTA-style wanted stars
-      hudLabel(ctx, 'WANTED', L, 108, HUD.food);
+      hudLabel(ctx, 'WANTED', L, 124, HUD.food);
       hudFont(ctx, 15, true, true); ctx.fillStyle = blinkOn ? HUD.food : HUD.warn;
-      ctx.fillText(`${'★'.repeat(game.wanted)}${'☆'.repeat(CONFIG.wanted.maxStars - game.wanted)}`, L + 66, 108);
-      ctx.fillStyle = HUD.track; ctx.fillRect(L + 66, 120, 110, 2); // time until the next star drops
-      ctx.fillStyle = HUD.food; ctx.fillRect(L + 66, 120, 110 * clamp(game.wantedT / CONFIG.wanted.decayTime, 0, 1), 2);
+      ctx.fillText(`${'★'.repeat(game.wanted)}${'☆'.repeat(CONFIG.wanted.maxStars - game.wanted)}`, L + 66, 124);
+      ctx.fillStyle = HUD.track; ctx.fillRect(L + 66, 136, 110, 2); // time until the next star drops
+      ctx.fillStyle = HUD.food; ctx.fillRect(L + 66, 136, 110 * clamp(game.wantedT / CONFIG.wanted.decayTime, 0, 1), 2);
     }
 
     // --- right edge: depth thread (0 m at the top) with your dive limit, big depth readout above the quests

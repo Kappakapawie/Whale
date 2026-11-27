@@ -19,7 +19,13 @@ function mulberry32(a) {
 function hash(a, b) { const h = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return h - Math.floor(h); }
 
 // 1 at the surface, falling off exponentially with depth.
-function lightAt(y) { return y <= 0 ? 1 : Math.exp(-y / CONFIG.light.falloff); }
+// Time of day: DAYLIGHT.k = 1 at midday, 0 at night (set every frame by Game.updateDay). Night lets less light into
+// the water, so everything in lightAt (darkness, sight, stealth, glows) gets darker at night.
+const DAYLIGHT = { k: 1 };
+function lightAt(y) {
+  const sun = CONFIG.dayNight.nightLight + (1 - CONFIG.dayNight.nightLight) * DAYLIGHT.k;
+  return (y <= 0 ? 1 : Math.exp(-y / CONFIG.light.falloff)) * sun;
+}
 
 // Ray (o + t*d) vs segment AB. Returns t >= 0 or -1.
 function raySeg(ox, oy, dx, dy, ax, ay, bx, by) {

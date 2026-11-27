@@ -52,6 +52,9 @@ const CONFIG = {
 
   // light = exp(-y / falloff). Darkness overlay alpha = min(maxDarkness, 1 - light).
   light: { falloff: 430, maxDarkness: 0.985 },
+  // Day/night cycle: one full day lasts `length` s, starting at `start` (0 = midnight, 0.25 = sunrise, 0.5 = noon,
+  // 0.75 = sunset). nightLight = how much sunlight is left at night (darker water, better stealth, worse orca sight).
+  dayNight: { length: 480, start: 0.3, nightLight: 0.35 },
 
   // Growth: size = 1 + (maxSize - 1) * sqrt(massEaten / massForMax).
   // Size scales the whale's body, speed, lungs, sonar range and the camera zoom.

@@ -305,6 +305,13 @@ then open http://localhost:8123 (the `deep-echo` entry in `.claude/launch.json` 
   and sinks, leaving wreckage, and raises your WANTED level. Level 3 sinks a ship in about three leaps. Without the
   upgrade you only bump off ships.
 - **Taking damage** shows only a faint red tint at the screen edges (`CONFIG.damageFx`), never a full-screen flash.
+- **Day/night cycle** (`CONFIG.dayNight`, `Game.updateDay`, `DAYLIGHT.k` in util.js, `drawSky`): one day lasts
+  `length` s (8 min). The sky runs through night, dawn, day and dusk (`SKY_KEYS`) with a sun and a crescent moon on
+  arcs, stars at night and drifting clouds tinted by the time of day. Days are warm, nights cool: the water gets a
+  warm or blue cast, light shafts and caustics fade at night, and the darkness overlay is rebuilt as daylight
+  changes. Night is real gameplay: `lightAt` includes daylight (down to `nightLight`), so the deep starts shallower,
+  orcas see you less well and stealth works better.
+- **Stat bars**: 8 px rounded bars with a soft glow, bold labels and a dark backing panel (no numbers).
 - **Water shading** (`drawWaterShading`): dappled caustics under the surface, slow parallax haze, marine snow and a
   screen vignette - all drawn before the darkness, so the deep stays black.
   P / Esc: pause, which also shows the sound menu (sliders for master, sonar, eating/breathing and damage/harpoons;

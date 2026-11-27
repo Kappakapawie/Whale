@@ -39,6 +39,7 @@ class Game {
     this.message = null; this.giantDefeated = false; this.humansAnnounced = false;
     this.finalsBeaten = new Set(); this.wonSpecies = null;
     this.cosmic = false; this.ascend = null; this.ascendFx = 0; // the ascension to the cosmic realm
+    this.dayT = CONFIG.dayNight.start; this.updateDay(0);
     this.noMealT = 0; this.lastMealSpawn = null; this.fight = null;
     this.humanHeat = 0; this.whaleIntel = null; this.heatStage = 0;
     this.cam = { x: 0, y: 0, z: 1 };
@@ -59,6 +60,14 @@ class Game {
     const sizeF = (w.size - 1) / (G.maxSize - 1);
     const lv = U.reduce((a, u) => a + Math.min(u.max, (w.levels[u.id] || 0) + (w.bonusLevels[u.id] || 0)), 0);
     return clamp((sizeF + lv / U.reduce((a, u) => a + u.max, 0)) / 2, 0, 1);
+  }
+
+  // Day/night: dayT runs 0..1 (0 = midnight, 0.5 = noon). sunElev -1..1; DAYLIGHT.k eases from night to day.
+  updateDay(dt) {
+    this.dayT = (this.dayT + dt / CONFIG.dayNight.length) % 1;
+    this.sunElev = Math.sin((this.dayT - 0.25) * TAU);
+    let k = clamp((this.sunElev + 0.15) / 0.45, 0, 1); k = k * k * (3 - 2 * k);
+    DAYLIGHT.k = this.cosmic ? 1 : k;
   }
 
   // The food chain of the realm you are in (the ocean, or the cosmic one after the ascension).
@@ -1038,6 +1047,7 @@ class Game {
 
     this.flash = Math.max(0, this.flash - dt * CONFIG.damageFx.decay);
     this.updateGore(dt);
+    this.updateDay(dt);
     // whatever died takes its echoes and holograms with it, instantly
     if (this.sonar.echoes.some(e => e.owner && e.owner.dead)) this.sonar.echoes = this.sonar.echoes.filter(e => !e.owner || !e.owner.dead);
     if (this.sonar.models.some(m => m.owner && m.owner.dead)) this.sonar.models = this.sonar.models.filter(m => !m.owner || !m.owner.dead);
