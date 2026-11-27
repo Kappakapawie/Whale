@@ -383,7 +383,7 @@ function whaleProfile(u) {
 }
 
 function drawWhaleModel(ctx, w, mode, px) {
-  const A = CONFIG.whaleLook, flip = Math.cos(w.angle) < 0 ? -1 : 1, z = w.size;
+  const A = CONFIG.whaleLook, flip = Math.cos(w.angle) < 0 ? -1 : 1, z = w.bodyScale();
   const ph = w.swimPhase || 0, amp = w.swimAmp || 0, bend = (w.bend || 0) * flip;
   const N = 26, X0 = 94, X1 = -80;
   // spine offset: travelling wave that grows toward the tail + a curve into the turn

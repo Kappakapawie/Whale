@@ -236,9 +236,9 @@ class Game {
           if (this.world.blocked(x, y) || dist(x, y, w.x, w.y) < minD) continue;
           p = { x, y };
         }
-      } else {
-        p = this.randomWaterPoint(sp.depthMin, sp.depthMax, w.x - R, w.x + R, w, minD, CONFIG.terrainAvoid.waypointClearance + bodyR);
       }
+      // free swimmers - and seabed dwellers when there is no seabed shallow enough nearby (deep water everywhere)
+      if (!p) p = this.randomWaterPoint(sp.depthMin, sp.depthMax, w.x - R, w.x + R, w, minD, CONFIG.terrainAvoid.waypointClearance + bodyR);
       if (p && (!maxD || dist(p.x, p.y, w.x, w.y) <= maxD)) return p;
     }
     return null;
@@ -261,6 +261,7 @@ class Game {
     const D = this.cosmic ? { ...CONFIG.mealDirector, ...CONFIG.cosmic.mealDirector } : CONFIG.mealDirector, w = this.whale;
     if (!w.alive) return;
     const range = D.huntRange * w.size;
+    this.updateTopSupply(dt, D, range);
     const hasMeal = this.prey.some(p => w.canEat(p.sp) && w.nutrition(p.sp) >= D.minWorth &&
                                         dist(p.x, p.y, w.x, w.y) < range);
     if (hasMeal) { this.noMealT = 0; return; }
@@ -285,6 +286,20 @@ class Game {
       })();
       if (ok) { this.noMealT = 0; this.lastMealSpawn = sp.id; return; }
     }
+  }
+
+  // Keep the food chain flowing: if none of your top species (the one that unlocks the next step) has been near
+  // for topGrace s, bring some in out of sight but inside sonar reach.
+  updateTopSupply(dt, D, range) {
+    const w = this.whale, top = w.topSpecies();
+    if (!D.topGrace || top.final || this.prey.some(p => p.sp === top && dist(p.x, p.y, w.x, w.y) < range)) { this.noTopT = 0; return; }
+    this.noTopT = (this.noTopT || 0) + dt;
+    if (this.noTopT < D.topGrace) return;
+    this.noTopT = D.topGrace - D.retryTime;
+    const halfView = this.cw / (2 * this.cam.z);
+    const minD = this.cosmic ? D.spawnMinDist * w.size : halfView + 200, maxD = Math.max(minD + 400, D.spawnMaxDist * w.size);
+    const ok = top.group ? this.spawnGroup(top, minD, maxD) : (() => { const q = this.spawnPoint(top, minD, maxD); if (q) this.prey.push(new Prey(top, q.x, q.y)); return !!q; })();
+    if (ok) this.noTopT = 0;
   }
 
   spawnPod(minD) {
@@ -384,7 +399,9 @@ class Game {
   manageFauna(minD) {
     if (this.cosmic) return; // the ocean's ambient life stays behind
     const w = this.whale, SW = CONFIG.swimmers;
+    const mythicNear = this.fauna.filter(f => f.def.mythic && !f.orbit).length;
     for (const def of CONFIG.fauna) {
+      if (def.mythic && mythicNear >= CONFIG.mythicMax) continue; // keep them rare: one at a time
       const leaders = this.fauna.filter(f => f.def === def && !f.leader).length;
       if (leaders >= def.count) continue;
       if (def.spawnChance && Math.random() > def.spawnChance) continue;

@@ -75,7 +75,8 @@ game reskinned, with its own food chain of cosmic fish ending in the Star Serpen
   `World.isGenerated` so it doesn't decide segments early. Between segments the seabed slopes inside the deeper one (flat tops stay flat).
   The start (x = 0) is always a small shelf with open sea right next to it on both sides.
 - **Mythical creatures** (`CONFIG.fauna` entries with `mythic: true`: sea serpent, leviathan, ghost jelly, lantern
-  dragon, bone eel; shapes in fauna.js) live only in the deepest water (depthMin >= 4500 units). Not food, they
+  dragon, bone eel; shapes in fauna.js) are rare: only below ~2400 m, at most `CONFIG.mythicMax` (1) near you at once,
+  low `spawnChance` per check (the trench gathering brings its own). Not food, they
   ignore you; seen by their glow and on sonar. They always stay mysterious: their sonar image never gets past
   `model.mythicMaxF` (vague, at least `mythicMinError` wrong), never shows a path, can't be echo-locked and
   never drops its echo lines (`Game.isMythic`).
@@ -145,7 +146,8 @@ game reskinned, with its own food chain of cosmic fish ending in the Star Serpen
 - **Don't let the player starve.** Energy per meal grows with tier; the meal director spawns something within
   `graceTime` (10 s, 4 s when hungry), favouring the top tiers of the diet. A swimming bot survived 8 minutes with
   meals ~2 s apart (longest gap 41 s) - re-run that kind of check after touching energy/spawn numbers.
-- **Growth is slow** (`growth.massForMax` 6000): roughly size 1.4 after 8 minutes, ~2.9 by the giant squid.
+- **Growth** (`growth.massForMax` 6000): with the top-species supply a hunting bot reaches ~size 1.5 at 10 min, ~2.2 at 15-20 min
+  and ~2.9 by the oarfish (~30 min).
 - **Coasts, swimmers and the WANTED level** (`src/fauna.js`, `CONFIG.swimmers/wanted`). Coasts are the beach
   segments (`World.coastNear`/`beachesIn`): shallow plateaus (~80-100 m) with a beach on the horizon. Human swimmers there
   are edible, but each one adds a GTA-style wanted star (max 5): +2 ships per star, higher whaler heat, and from
@@ -159,6 +161,13 @@ game reskinned, with its own food chain of cosmic fish ending in the Star Serpen
 - **Seabed life** (`buildDecor`/`drawDecor`): per chunk, kelp/reefs/anemones in the shallows, sponges/sea fans/
   cold-water coral mid-depth, glowing sea pens/tube worms/glass sponges/rare whale falls in the deep. Nothing
   (rocks, pillars, plants) may reach the surface - shallow coasts clamp heights.
+- **The food chain keeps flowing** (`Game.updateTopSupply`, `mealDirector.topGrace`): if none of your TOP species
+  (the one that unlocks the next step) has been near for `topGrace` s, some are brought in inside sonar reach.
+  Seabed-dwellers spawn mid-water in their depth band when no shallow seabed is around. Check the flow with
+  `node tools/flow-bot.js 30` (a hunting bot; last run reached the oarfish in ~29 min, steps 0.5-8 min).
+- **The whale's body grows slower than its size** (`growth.bodyExp` 0.6, `Whale.bodyScale()`): drawing, collision and
+  the mouth use size^0.6 (full size looks ~1.9x the calf), so the fish stay big next to you; stats, sonar, camera and
+  everything else still use `size`.
 - **There is always something to hunt.** `Game.updateMealDirector`: if no edible prey worth >= `minWorth` has
   been within `huntRange` x size for `graceTime` (20 s), a random unlocked species (not necessarily the best) is
   spawned out of sight but inside sonar beam reach. Sparse is fine; empty is not.
@@ -246,6 +255,7 @@ then open http://localhost:8123 (the `deep-echo` entry in `.claude/launch.json` 
 | `src/entities.js` | `SHAPES`, `Whale` (growth, upgrades), `Prey` (all species), `Pod` + `Orca`, `Ship` + `Harpoon` |
 | `src/audio.js` | Procedural WebAudio sounds (clicks, echoes, hurt, harpoon, breath), volume channels + saved volumes |
 | `src/render.js` | Zoomed world drawing, water shading, cosmic backdrop, whale body model, darkness overlay, echoes, HUD, food chain panel, menus |
+| `tools/flow-bot.js` | Balance check: a hunting bot plays N minutes and reports the food-chain flow (Playwright) |
 | `src/main.js` | `Game` class: input, spawning/despawning around the whale, update loop, state machine |
 
 ## Current gameplay (v0.2)

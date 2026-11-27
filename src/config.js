@@ -30,8 +30,8 @@ const CONFIG = {
     start: { type: 'shelf', halfWidth: 900, neighbour: 'open' },
     // lookahead: segments are decided this far beyond the loaded area (short, so they reflect your progress now).
     // forgetMargin: segments further than loaded area + lookahead + this are forgotten (no memory of old places).
-    // progressCurve: weights use progress^curve (0.5 = sqrt: the late-game deep mix arrives early).
-    ramp: 700, rampPerDepth: 0.6, maxRampShare: 0.45, lookahead: 2500, forgetMargin: 4500, progressCurve: 0.5,
+    // progressCurve: weights use progress^curve (< 1: the late-game deep mix arrives earlier).
+    ramp: 700, rampPerDepth: 0.6, maxRampShare: 0.45, lookahead: 2500, forgetMargin: 4500, progressCurve: 0.7,
   },
   population: { pods: 2, ships: 1, checkInterval: 1, groupSpread: 130 }, // groupSpread: how loose schools are
   // Free swimmers keep this much water between themselves and terrain (nearFloor species are exempt).
@@ -41,7 +41,10 @@ const CONFIG = {
   // spawned just out of sight, within spawnMaxDist (x size) - inside sonar range.
   // spawnMaxDist stays below the sonar beam range (1400 x size) so a spawned meal can always be found with one click.
   // graceTime shrinks to hungryGraceTime when energy is below hungryAt. Spawns favour the top tiers of your diet.
-  mealDirector: { graceTime: 10, hungryGraceTime: 4, hungryAt: 0.35, retryTime: 2, huntRange: 1800, minWorth: 0.3, spawnMaxDist: 1300 },
+  // topGrace: if none of your TOP species (the one that unlocks the next step) is within huntRange x size for this
+  // long, some are brought in (inside sonar reach) - so the food chain keeps flowing all the way up.
+  mealDirector: { graceTime: 10, hungryGraceTime: 4, hungryAt: 0.35, retryTime: 2, huntRange: 1800, minWorth: 0.3, spawnMaxDist: 1300,
+                  topGrace: 12 },
   // Depth: 1 world unit = 0.4 m, so the deepest seabed (7500) is 3000 m - about the deepest a sperm whale dives.
   // Bodies use their own scale (lengths would otherwise make the ocean absurdly shallow): 1 unit = 0.026 m,
   // so a size-1 whale (180 units) is a 4.7 m calf and a size-3 whale a 14 m adult.
@@ -55,6 +58,7 @@ const CONFIG = {
   growth: {
     depthPerSize: 1.0,       // max dive depth x (1 + depthPerSize x (size - 1))
     maxSize: 3, massForMax: 6000,   // slow growth: ~size 1.6 by tier 6, ~2.9 by the giant squid
+    bodyExp: 0.6,            // the body you see grows as size^bodyExp (size 3 looks ~1.9x the calf), so fish stay big next to you
     humansAtSize: 1.45,      // whaling ships start hunting once you're about half of max size
     // Bigger = slower and heavier: top speed, acceleration and turning all DROP with size,
     // while the camera zooms out, so the whale feels huge and the ocean feels vast.
@@ -366,6 +370,7 @@ const CONFIG = {
   // Ambient life (not food): giants, mammals, glowing deep-sea animals and seabed crawlers.
   // glow: points (local shape coords) that emit light in the dark. group: swims with a leader.
   // spawnChance: chance per population check to spawn one when missing (makes giants rare encounters).
+  mythicMax: 1, // mythical creatures near you at the same time (the trench gathering brings its own)
   fauna: [
     { id: 'bluewhale', name: 'Blue Whale',     shape: 'baleen',  length: 1100, color: '#4f6a86', depthMin: 30,   depthMax: 900,  count: 1, spawnChance: 0.1, speed: 28 },
     { id: 'humpback',  name: 'Humpback Whale', shape: 'baleen',  length: 600,  color: '#3d4650', depthMin: 20,   depthMax: 800,  count: 1, spawnChance: 0.2, speed: 35 },
@@ -382,18 +387,17 @@ const CONFIG = {
       glow: { c: [120, 190, 255], pts: [[-20, 0], [20, 0]], r: 8, speed: 1.5 } },
     { id: 'angler',    name: 'Anglerfish',     shape: 'angler',  length: 30,   color: '#3a3530', depthMin: 2500, depthMax: 7000, count: 4, speed: 8, lure: true,
       glow: { c: [180, 255, 210], pts: [[62, -42]], r: 16, speed: 1.2 } },
-    // Mythical creatures (mythic: true): only in the deepest water (deep sea and trench segments), more of them the
-    // deeper you go. Not food, they ignore you; mostly seen by their glow and on sonar. At the trench floor they
+    // Mythical creatures (mythic: true): rare (at most mythicMax nearby at once, low spawnChance per check), only below ~2400 m (the deepest deep sea and trenches). Not food, they ignore you; mostly seen by their glow and on sonar. At the trench floor they
     // gather around you before the ascension.
-    { id: 'serpent',   name: 'Sea Serpent',    shape: 'serpent',   length: 900,  color: '#24414a', depthMin: 4500, depthMax: 11600, count: 1, spawnChance: 0.4, speed: 30, mythic: true,
+    { id: 'serpent',   name: 'Sea Serpent',    shape: 'serpent',   length: 900,  color: '#24414a', depthMin: 6000, depthMax: 11600, count: 1, spawnChance: 0.03, speed: 30, mythic: true,
       glow: { c: [90, 230, 210], pts: [[46, -3], [30, 0], [14, 0], [-2, 0], [-18, 0], [-34, 0]], r: 10, speed: 1.3 } },
-    { id: 'leviathan', name: 'Leviathan',      shape: 'leviathan', length: 1700, color: '#151c24', depthMin: 5200, depthMax: 11600, count: 1, spawnChance: 0.25, speed: 20, mythic: true,
+    { id: 'leviathan', name: 'Leviathan',      shape: 'leviathan', length: 1700, color: '#151c24', depthMin: 6600, depthMax: 11600, count: 1, spawnChance: 0.015, speed: 20, mythic: true,
       glow: { c: [255, 120, 90], pts: [[40, -6]], r: 18, speed: 0.6 } },
-    { id: 'ghostjelly', name: 'Ghost Jelly',   shape: 'jelly',     length: 520,  color: '#a8b8d8', depthMin: 4800, depthMax: 11600, count: 1, spawnChance: 0.35, speed: 6, drift: true, mythic: true,
+    { id: 'ghostjelly', name: 'Ghost Jelly',   shape: 'jelly',     length: 520,  color: '#a8b8d8', depthMin: 6000, depthMax: 11600, count: 1, spawnChance: 0.03, speed: 6, drift: true, mythic: true,
       glow: { c: [170, 200, 255], pts: [[0, -14], [0, 14], [20, 0], [-30, 0]], r: 20, speed: 0.9 } },
-    { id: 'dragon',    name: 'Lantern Dragon', shape: 'dragon',    length: 280,  color: '#2a2230', depthMin: 4500, depthMax: 11600, count: 2, spawnChance: 0.4, speed: 40, mythic: true,
+    { id: 'dragon',    name: 'Lantern Dragon', shape: 'dragon',    length: 280,  color: '#2a2230', depthMin: 6000, depthMax: 11600, count: 1, spawnChance: 0.03, speed: 40, mythic: true,
       glow: { c: [255, 200, 120], pts: [[60, -30], [20, 4], [-10, 4], [-40, 2]], r: 9, speed: 2 } },
-    { id: 'boneeel',   name: 'Bone Eel',       shape: 'serpent',   length: 420,  color: '#cfc6b0', depthMin: 4500, depthMax: 11600, count: 2, spawnChance: 0.4, speed: 35, mythic: true,
+    { id: 'boneeel',   name: 'Bone Eel',       shape: 'serpent',   length: 420,  color: '#cfc6b0', depthMin: 6000, depthMax: 11600, count: 1, spawnChance: 0.03, speed: 35, mythic: true,
       glow: { c: [220, 230, 255], pts: [[46, -3]], r: 7, speed: 2.5 } },
     { id: 'crab',      name: 'Deep-sea Crab',  shape: 'crab',    length: 22,   color: '#9a6a3a', depthMin: 0,    depthMax: 7500, count: 6, speed: 8, bottom: true, scavenger: true },
   ],

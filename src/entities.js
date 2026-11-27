@@ -129,7 +129,7 @@ class Whale {
   }
 
   updatePoly() {
-    const z = this.size;
+    const z = this.bodyScale(); // drawn/collision size grows slower than the stats (CONFIG.growth.bodyExp)
     this.poly = transformShape(SHAPES.whale, this.x, this.y, this.angle, z);
     const M = CONFIG.mouth;
     const [h, b, mf, mb] = transformShape([[90, 0], [78, -26], M.front, M.back], this.x, this.y, this.angle, z);
@@ -138,10 +138,13 @@ class Whale {
     this.mouthSeg = [mf[0], mf[1], mb[0], mb[1]]; // eating zone: a capsule along the lower jaw (CONFIG.mouth)
   }
 
+  // The body's physical scale: grows slower than size (size^bodyExp), so the fish stay big next to you.
+  bodyScale() { return Math.pow(this.size, CONFIG.growth.bodyExp); }
+
   // Can the whale bite something at (x, y) with body radius r? (capsule along the jaw, see CONFIG.mouth)
   canReach(x, y, r) {
     const m = this.mouthSeg, c = closestOnSeg(x, y, m[0], m[1], m[2], m[3]);
-    return Math.hypot(c[0] - x, c[1] - y) < r + CONFIG.mouth.reach * this.size;
+    return Math.hypot(c[0] - x, c[1] - y) < r + CONFIG.mouth.reach * this.bodyScale();
   }
 
   update(dt, game, input) {
@@ -216,7 +219,7 @@ class Whale {
   // Body is approximated by circles along its length. Each one is pushed out of terrain, and the
   // velocity component going into the surface is removed, so the whale slides along walls instead of sticking.
   collide(game) {
-    const z = this.size;
+    const z = this.bodyScale(); // drawn/collision size grows slower than the stats (CONFIG.growth.bodyExp)
     const circles = [[62, 0, 24], [10, 0, 26], [-50, 0, 15]];
     for (let iter = 0; iter < 2; iter++) {
       for (const [lx, ly, r] of circles) {
