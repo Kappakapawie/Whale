@@ -126,7 +126,7 @@ function m3dTransform(c, v, M, x, y, z) {
 function m3dWave(M, v, x) {
   if (M.wave === 'none' || M.wave === 'flap' || M.wave === 'pulse') return 0;
   const tail = clamp((30 - x) / 80, 0, 1);
-  return Math.sin(v.phase - x * 0.08) * tail * tail * 6 * (M.waveAmp || 1) * v.amp;
+  return Math.sin(v.phase - x * 0.08) * tail * tail * CONFIG.models3d.waveAmp * (M.waveAmp || 1) * v.amp;
 }
 
 function shadeColor(rgb, k) { return `rgb(${Math.min(255, rgb[0] * k) | 0},${Math.min(255, rgb[1] * k) | 0},${Math.min(255, rgb[2] * k) | 0})`; }
@@ -194,7 +194,7 @@ function drawCreature3D(ctx, c, t, opts = {}) {
       const ang = k / L.n * TAU, oy = Math.cos(ang) * L.spread * 0.6, oz = Math.sin(ang) * L.spread, pts = [];
       for (let s = 0; s <= 6; s++) {
         const f = s / 6, x = L.from[0] - (L.legs ? 0 : L.len * f);
-        const sway = Math.sin(v.phase * 0.9 - f * 3 + k) * 4 * f;
+        const sway = Math.sin(v.phase * 0.9 - f * 3 + k) * 7 * f; // arms and tentacles wave
         const y = L.legs ? L.from[1] + f * 14 : L.from[1] + oy * (0.5 + f) + sway;
         const z = L.legs ? Math.sign(oz || 1) * (8 + f * L.len) : oz * (0.6 + f * 0.8) + sway * 0.6;
         pts.push(m3dTransform(c, v, M, L.legs ? L.from[0] + (k - L.n / 2) * 6 : x, y, z));

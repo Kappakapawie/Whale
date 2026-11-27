@@ -296,15 +296,20 @@ function drawCosmos(ctx, game, W, H, t) {
 // Lit world drawing, so it is hidden by the darkness in the deep; there it is seen only through sonar echoes
 // (Game.echoGore).
 function drawGore(ctx, game, px) {
-  const G = CONFIG.gore;
-  for (const c of game.gore.clouds) {
-    if (c.age < 0) continue; // not started yet (clouds bloom one after another)
-    const f = c.age / c.life, r = c.r * (0.4 + 1.2 * Math.sqrt(f)), a = 0.42 * (1 - f) * (1 - f);
-    const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, r);
-    g.addColorStop(0, `rgba(120,8,14,${a.toFixed(3)})`); g.addColorStop(0.6, `rgba(95,6,12,${(a * 0.6).toFixed(3)})`);
-    g.addColorStop(1, 'rgba(80,4,10,0)');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, TAU); ctx.fill();
+  // blood: soft dark-red blobs made of a few wobbling lobes, swelling and fading as they spread
+  for (const b of game.gore.blobs) {
+    if (b.age < 0) continue;
+    const f = b.age / b.life, R = b.r * (0.5 + 0.8 * Math.sqrt(f)), a = 0.55 * (1 - f) * (1 - f * 0.5);
+    for (const L of b.lobes) {
+      const wob = 1 + 0.12 * Math.sin(game.time * 1.3 + L.ph);
+      const x = b.x + L.ox * R, y = b.y + L.oy * R, r = R * L.s * wob;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, `rgba(105,6,14,${a.toFixed(3)})`); g.addColorStop(0.55, `rgba(90,4,12,${(a * 0.8).toFixed(3)})`);
+      g.addColorStop(1, 'rgba(70,2,8,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+    }
   }
+  // ship wreckage
   for (const k of game.gore.chunks) {
     const a = Math.min(1, (k.life - k.age) / 1.5);
     ctx.save(); ctx.translate(k.x, k.y); ctx.rotate(k.rot); ctx.globalAlpha = a;
@@ -314,12 +319,6 @@ function drawGore(ctx, game, px) {
     ctx.restore();
   }
   ctx.globalAlpha = 1;
-  // a thin trail of blood behind each sinking chunk
-  ctx.strokeStyle = 'rgba(110,8,14,0.25)'; ctx.lineWidth = Math.max(px, G.trailWidth);
-  for (const k of game.gore.chunks) {
-    if (k.age > k.life * 0.7) continue;
-    ctx.beginPath(); ctx.moveTo(k.x, k.y); ctx.lineTo(k.x - k.vx * 0.25, k.y - k.vy * 0.25); ctx.stroke();
-  }
 }
 
 // ---------------------------------------------------------------- water shading
@@ -552,7 +551,9 @@ function drawModels(ctx, game, px) {
     // well-known creatures: the hologram is their 3D model, in the pose they had when the sound hit (live when locked)
     const pose = m.lock ? m.owner.v3 : m.pose;
     if (CONFIG.models3d.enabled && pose && m.f >= S.model.full3d && MODELS3D[m.shape]) {
-      const ghost = { x: m.x, y: m.y, angle: m.angle, scale: m.scale, shapeName: m.shape, vx: 0, vy: 0, v3: { ...pose, t } };
+      // position and pose stay frozen (no live tracking) but the body keeps its swim cycle, so the hologram swims in place
+      const ghost = { x: m.x, y: m.y, angle: m.angle, scale: m.scale, shapeName: m.shape, vx: 0, vy: 0,
+                      v3: { ...pose, t, phase: pose.phase + (m.lock ? 0 : (t - m.t) * 3), amp: Math.max(pose.amp || 0.5, 0.6) } };
       const ha = a * (0.45 + 0.55 * (m.f - S.model.full3d) / (1 - S.model.full3d));
       if (drawCreature3D(ctx, ghost, t, { frozen: true, holo: c, holoAlpha: ha })) {
         if (m.path) drawPath(ctx, m.path, col, a, px);

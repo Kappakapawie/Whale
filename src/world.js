@@ -37,7 +37,8 @@ class World {
 
   // ---- segments
   rollType(rng) {
-    const T = this.types, p = clamp(this.progressFn(), 0, 1);
+    // weights follow progress on a curve (sqrt): a growing whale reaches the deep-sea mix early
+    const T = this.types, p = Math.pow(clamp(this.progressFn(), 0, 1), CONFIG.segments.progressCurve);
     const ws = Object.keys(T).map(k => [k, lerp(T[k].weight[0], T[k].weight[1], p)]);
     let r = rng() * ws.reduce((a, e) => a + e[1], 0);
     for (const [k, w] of ws) if ((r -= w) <= 0) return k;
@@ -140,6 +141,10 @@ class World {
     const cw = this.chunkW, c0 = Math.floor((x - radius) / cw), c1 = Math.floor((x + radius) / cw);
     const look = CONFIG.segments.lookahead;
     this.cover(x - radius - look, x + radius + look); // decide upcoming segments a little ahead
+    // No memory: segments well behind you are forgotten; coming back rolls new ones at your current progress.
+    const keep = radius + look + CONFIG.segments.forgetMargin;
+    while (this.segs.length > 1 && this.segs[0].x1 < x - keep) { this.segs.shift(); this.segCount.L = Math.max(1, this.segCount.L); }
+    while (this.segs.length > 1 && this.segs[this.segs.length - 1].x0 > x + keep) { this.segs.pop(); this.segCount.R = Math.max(1, this.segCount.R); }
     let changed = false;
     for (let c = c0; c <= c1; c++) {
       if (!this.chunks.has(c)) { this.chunks.set(c, this.buildChunk(c)); changed = true; }

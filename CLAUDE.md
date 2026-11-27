@@ -68,10 +68,11 @@ game reskinned, with its own food chain of cosmic fish ending in the Star Serpen
   (~80-100 m plateau, beach on the horizon, swimmers), shelf (~150-250 m), open sea (~600-1500 m, ridges) and deep
   sea (~2200-2600 m, pillars, kraken). The map doesn't have to make geographic sense. Each new segment is rolled
   with weights that slide with `Game.progress()` (average of size and upgrade-level progress): a new whale finds
-  mostly shelf/open sea and a developed whale is in deep sea most of the time (~75% at full progress); beaches are rare. Segments are decided once
-  (`lookahead` beyond the loaded area) and then remembered, so the floor at x never changes afterwards and chunks
-  rebuild identically. Code that probes far away (e.g. the kraken spawn) must use `World.isGenerated` so it
-  doesn't lock in segments early. Between segments the seabed slopes inside the deeper one (flat tops stay flat).
+  mostly shelf/open sea and a developed whale is in deep sea most of the time (weights use progress^`progressCurve`,
+  so the deep mix arrives early); beaches are rare. **There is no memory of old places:** segments are decided a
+  short `lookahead` ahead at your current progress, and once they are far behind you (`forgetMargin`) they are
+  forgotten - coming back rolls new ones. Code that probes far away (e.g. the kraken spawn) must use
+  `World.isGenerated` so it doesn't decide segments early. Between segments the seabed slopes inside the deeper one (flat tops stay flat).
   The start (x = 0) is always a small shelf with open sea right next to it on both sides.
 - **Mythical creatures** (`CONFIG.fauna` entries with `mythic: true`: sea serpent, leviathan, ghost jelly, lantern
   dragon, bone eel; shapes in fauna.js) live only in the deepest water (depthMin >= 4500 units). Not food, they
@@ -270,9 +271,15 @@ then open http://localhost:8123 (the `deep-echo` entry in `.claude/launch.json` 
   flat `SHAPES`. Tiny on-screen creatures use fewer segments or the flat polygon (LOD). A new shape needs a
   `MODELS3D` entry in the same coordinates as its `SHAPES` entry, else it falls back to flat.
 - **Eating zone** (`CONFIG.mouth`, `Whale.canReach`): a capsule along the lower jaw, not just the snout tip.
-- **Kills burst into gore** (`Game.spawnGore`/`updateGore`, `drawGore`, `CONFIG.gore`): blood clouds and flesh chunks
-  that drift, slow and sink (prey, swimmers, scavenged carcasses). It's lit world drawing, so in the deep it's only
-  seen on sonar: each click echoes the chunks it reaches as green/yellow specks (`Game.echoGore`, snapshots).
+- **Kills leave blood blobs** (`Game.spawnGore`/`updateGore`, `drawGore`, `CONFIG.gore`): a few soft, wobbling blobs
+  of blood (clusters of lobes) that spread, slow, sink and fade - no particle explosions. Lit world drawing, so in the
+  deep it's only seen on sonar (each click echoes the blobs it reaches, `Game.echoGore`). Ship wreckage uses
+  `gore.chunks`.
+- **Death removes echoes instantly**: echoes and holograms remember their `owner`; when it dies they vanish at once.
+- **Damage lights up the target** (`Game.localEcho`): every bite you land and every Breach Strike hit makes a local
+  echo on the target - its faces toward you (unless fully learned) plus a hologram at your current familiarity,
+  like a sonar hit, but no scan is counted and no noise is made.
+- Holograms keep a frozen position and pose but keep their swim cycle (they swim in place).
 - **Breach Strike** (stat `breachPower`, upgrade `breach`, `CONFIG.breach`, `Game.updateBreach`): crossing the surface
   going up launches you high out of the water (level 3 at full size: ~1000 units), at most once per `cooldown`. While
   breaching, hitting a whaling ship damages it (ships have `ship.hp`; a hull bar shows damage); at 0 hp it lists over

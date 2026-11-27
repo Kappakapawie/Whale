@@ -29,7 +29,7 @@ class Game {
     if (stage > 1) this.applyStage(stage);
     this.prey = []; this.groups = []; this.pods = []; this.orcas = [];
     this.ships = []; this.harpoons = []; this.particles = []; this.popups = [];
-    this.gore = { chunks: [], clouds: [] };
+    this.gore = { blobs: [], chunks: [] };
     this.paint = []; // paint-sense lines (cosmic realm)
     this.fauna = []; this.swimmers = []; this.wanted = 0; this.wantedT = 0; this.intelT = 0; this.carcasses = [];
     this.quests = new Quests(this);
@@ -107,7 +107,7 @@ class Game {
     this.world = new World(undefined, () => this.progress(), { cosmic: true });
     w.y = 3000; w.vx = 0; w.vy = 0; w.updatePoly();
     this.prey = []; this.groups = []; this.pods = []; this.orcas = []; this.ships = []; this.harpoons = [];
-    this.fauna = []; this.swimmers = []; this.carcasses = []; this.kraken = null; this.gore = { chunks: [], clouds: [] };
+    this.fauna = []; this.swimmers = []; this.carcasses = []; this.kraken = null; this.gore = { blobs: [], chunks: [] };
     this.wanted = 0; this.humanHeat = 0; this.whaleIntel = null; this.fight = null;
     this.sonar.echoes = []; this.sonar.models = []; this.sonar.pings = []; this.paint = [];
     const first = CONFIG.species.find(sp => sp.cosmic);
@@ -507,14 +507,15 @@ class Game {
   // Each sonar hit on a creature is one scan of its species. Familiarity (scans / scansForFull) controls
   // how accurate the hologram model drawn over the echo is. The model is a snapshot of where the creature
   // was when the sound hit it - it does not track the creature afterwards.
-  scanCreature(owner, revealT, lifeMult) {
+  // count false: a snapshot at your current familiarity without counting as a new scan (local echo of a bite)
+  scanCreature(owner, revealT, lifeMult, count = true) {
     if (!owner || !this.isCreature(owner)) return;
     const M = CONFIG.sonar.model, w = this.whale;
-    owner.lockPlan(CONFIG.creatures.reactionTime); // can't react to the click instantly
+    if (count) owner.lockPlan(CONFIG.creatures.reactionTime); // can't react to the click instantly
     const id = this.speciesKey(owner), mythic = this.isMythic(owner);
-    const n = (w.scans[id] || 0) + 1;
+    const n = (w.scans[id] || 0) + (count ? 1 : 0);
     w.scans[id] = n;
-    if (n === M.scansForFull && !mythic) {
+    if (count && n === M.scansForFull && !mythic) {
       const name = this.creatureName(owner);
       this.say(`Sonar image complete: ${name}`, 3, '#9fe8ff');
     }
@@ -719,6 +720,7 @@ class Game {
         this.fight = { prey: p, t: 3, label: struggle ? struggle.label : 'fight' };
         if (p.biteT > 0) continue;
         p.hp -= w.stats.bite; p.biteT = 0.5;
+        if (p.hp > 0) this.localEcho(p); // the bite lights it up like a sonar hit
         this.sfx.chomp(); this.popup(p.x, p.y - p.radius, `-${Math.round(w.stats.bite)}`, '#ffe9a0');
         if (struggle) {
           const hurt = struggle.damage * w.stats.maxHealth * w.stats.damageTaken;
@@ -771,6 +773,30 @@ class Game {
     this.carcasses = this.carcasses.filter(c => !c.dead);
   }
 
+  // ------------------------------------------------------------ local echoes
+  // Damaging something lights it up like a sonar hit at your current familiarity: its faces toward you echo
+  // (unless the species is fully learned) and its hologram snapshot appears. No scan is counted, no noise made.
+  localEcho(o) {
+    if (!o || !o.poly) return;
+    // seen from the whale's body centre (the snout is often already inside what it is biting)
+    const w = this.whale, h = { x: w.x, y: w.y }, life = CONFIG.sonar.echoLife * w.stats.echoLifeMult;
+    const kind = o.solid ? this.echoClass(o.solid) : 'inedible';
+    const learned = this.isCreature(o) && !this.isMythic(o) && (w.scans[this.speciesKey(o)] || 0) >= CONFIG.sonar.model.scansForFull;
+    if (!learned) {
+      const P = o.poly, n = P.length; let cx = 0, cy = 0;
+      for (const p of P) { cx += p[0] / n; cy += p[1] / n; }
+      for (let i = 0; i < n; i++) {
+        const A = P[i], B = P[(i + 1) % n], mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2;
+        let nx = -(B[1] - A[1]), ny = B[0] - A[0]; const l = Math.hypot(nx, ny) || 1; nx /= l; ny /= l;
+        if (nx * (mx - cx) + ny * (my - cy) < 0) { nx = -nx; ny = -ny; } // outward
+        const dx = mx - h.x, dy = my - h.y, dl = Math.hypot(dx, dy) || 1, facing = -(nx * dx + ny * dy) / dl;
+        if (facing <= 0.05) continue; // only the faces turned toward you
+        this.sonar.echoes.push({ line: true, x1: A[0], y1: A[1], x2: B[0], y2: B[1], t: this.time, life, i: 0.35 + 0.65 * facing, kind, owner: o });
+      }
+    }
+    this.scanCreature(o, this.time, w.stats.echoLifeMult, false);
+  }
+
   // ------------------------------------------------------------ Breach Strike (stat breachPower)
   // Leaving the water going up launches you (with the upgrade); while breaching you can smash whaling ships.
   updateBreach(dt, prevY) {
@@ -790,7 +816,7 @@ class Game {
       sh.hitT = B.hitCooldown;
       if (lv <= 0 || sp < B.minImpact) { w.vx *= 0.5; w.vy = Math.abs(w.vy) * 0.3; continue; } // just a bump
       const dmg = B.damage * lv * clamp(sp / B.refSpeed, 0.5, 2);
-      sh.hp -= dmg; w.vx *= 0.6; w.vy *= 0.4;
+      sh.hp -= dmg; w.vx *= 0.6; w.vy *= 0.4; this.localEcho(sh);
       this.sfx.crash(); this.splash(sh.x, w.size, 30);
       this.popup(sh.x, sh.y - 90, `-${Math.round(dmg)}`, '#ffd166');
       if (sh.hp <= 0) {
@@ -874,41 +900,43 @@ class Game {
   // ------------------------------------------------------------ gore
   // A kill at (x, y): `radius` = the prey's body radius, `kind` = its echo colour class (edible / inedible).
   spawnGore(x, y, radius, kind, vx = 0, vy = 0) {
-    const G = CONFIG.gore, r = Math.max(G.minRadius * this.whale.size, radius), n =Math.round(clamp(G.chunks[0] + r / 6, G.chunks[0], G.chunks[1]));
+    // A kill leaves a few soft blobs of blood (each a cluster of overlapping lobes) that spread, drift and sink.
+    const G = CONFIG.gore, r = Math.max(G.minRadius * this.whale.size, radius);
+    const n = randInt(G.blobs[0], G.blobs[1]);
     for (let i = 0; i < n; i++) {
-      const a = rand(0, TAU), sp = G.burst * rand(0.3, 1) * (0.6 + r / 60);
-      const shape = []; const m = 5 + randInt(0, 2);
-      for (let j = 0; j < m; j++) { const t = j / m * TAU; const rr = rand(0.6, 1.1); shape.push([Math.cos(t) * rr, Math.sin(t) * rr * 0.75]); }
-      this.gore.chunks.push({ x: x + rand(-r, r) * 0.4, y: y + rand(-r, r) * 0.4, vx: vx * 0.4 + Math.cos(a) * sp, vy: vy * 0.4 + Math.sin(a) * sp,
-        r: rand(0.12, 0.28) * r, rot: rand(0, TAU), spin: rand(-3, 3), age: 0, life: G.chunkLife * rand(0.7, 1.2), shape, kind,
-        color: ['#7a1a1e', '#8c2a2a', '#5e1216', '#a3483f'][randInt(0, 3)] });
-    }
-    for (let i = 0; i < G.clouds; i++) {
-      this.gore.clouds.push({ x: x + rand(-r, r) * 0.6, y: y + rand(-r, r) * 0.6, r: r * rand(1.4, 2.4), age: rand(-0.3, 0), life: G.cloudLife * rand(0.7, 1.2) });
+      const a = rand(0, TAU), d = i === 0 ? 0 : r * rand(0.4, 0.9), lobes = [];
+      for (let k = 0, m = randInt(3, 5); k < m; k++) lobes.push({ ox: rand(-0.5, 0.5), oy: rand(-0.4, 0.4), s: rand(0.5, 1), ph: rand(0, TAU) });
+      this.gore.blobs.push({ x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, vx: vx * 0.3 + Math.cos(a) * G.spread * rand(0.3, 1),
+        vy: vy * 0.3 + Math.sin(a) * G.spread * rand(0.3, 1), r: r * (i === 0 ? 1 : rand(0.45, 0.8)), age: rand(-0.15, 0) * i,
+        life: G.blobLife * rand(0.8, 1.2), lobes, kind });
     }
   }
 
   updateGore(dt) {
     const G = CONFIG.gore, k = Math.exp(-G.drag * dt);
-    for (const c of this.gore.chunks) {
-      c.vx *= k; c.vy = G.sink + (c.vy - G.sink) * k; // slows down, then sinks at G.sink
-      c.x += c.vx * dt; c.y += c.vy * dt; c.rot += c.spin * dt; c.spin *= k; c.age += dt;
-      if (this.world.blocked(c.x, c.y)) { c.vx = 0; c.vy = 0; c.spin = 0; } // settle on the seabed
+    for (const b of this.gore.blobs) {
+      b.vx *= k; b.vy = G.sink + (b.vy - G.sink) * k; b.x += b.vx * dt; b.y += b.vy * dt; b.age += dt;
     }
-    for (const c of this.gore.clouds) { c.age += dt; c.y -= 2 * dt; }
+    for (const c of this.gore.chunks) { // ship wreckage
+      c.vx *= k; c.vy = G.sink + (c.vy - G.sink) * k;
+      c.x += c.vx * dt; c.y += c.vy * dt; c.rot += c.spin * dt; c.spin *= k; c.age += dt;
+      if (this.world.blocked(c.x, c.y)) { c.vx = 0; c.vy = 0; c.spin = 0; }
+    }
+    this.gore.blobs = this.gore.blobs.filter(b => b.age < b.life);
     this.gore.chunks = this.gore.chunks.filter(c => c.age < c.life);
-    this.gore.clouds = this.gore.clouds.filter(c => c.age < c.life);
   }
 
-  // Sonar sees the flesh chunks: each one inside the click's reach echoes as a small speck where it was when the
-  // sound reached it (a snapshot, like every echo), coloured like the animal it came from.
+  // Sonar sees the blood: each blob inside the click's reach echoes as a small arc where it was when the sound
+  // reached it (a snapshot, like every echo), coloured like the animal it came from.
   echoGore(res, x, y) {
     const ping = this.sonar.pings[this.sonar.pings.length - 1], life = CONFIG.sonar.echoLife * this.whale.stats.echoLifeMult * CONFIG.gore.echoLife;
-    for (const c of this.gore.chunks) {
-      const d = dist(x, y, c.x, c.y);
-      if (d > res.range) continue;
-      if (!ping.full && Math.abs(angleDiff(ping.angle, Math.atan2(c.y - y, c.x - x))) > ping.cone / 2) continue;
-      this.sonar.echoes.push({ line: false, x1: c.x, y1: c.y, t: this.time + d / res.speed, life, i: 0.55 + 0.4 * Math.random(), kind: c.kind });
+    for (const b of this.gore.blobs.concat(this.gore.chunks)) {
+      const d = dist(x, y, b.x, b.y);
+      if (d > res.range || b.age < 0) continue;
+      if (!ping.full && Math.abs(angleDiff(ping.angle, Math.atan2(b.y - y, b.x - x))) > ping.cone / 2) continue;
+      const rr = (b.lobes ? b.r * (0.5 + 0.8 * Math.sqrt(b.age / b.life)) : b.r), a = Math.atan2(y - b.y, x - b.x);
+      this.sonar.echoes.push({ line: true, x1: b.x + Math.cos(a - 0.6) * rr, y1: b.y + Math.sin(a - 0.6) * rr,
+        x2: b.x + Math.cos(a + 0.6) * rr, y2: b.y + Math.sin(a + 0.6) * rr, t: this.time + d / res.speed, life, i: 0.5, kind: b.kind });
     }
   }
 
@@ -966,6 +994,9 @@ class Game {
 
     this.flash = Math.max(0, this.flash - dt * CONFIG.damageFx.decay);
     this.updateGore(dt);
+    // whatever died takes its echoes and holograms with it, instantly
+    if (this.sonar.echoes.some(e => e.owner && e.owner.dead)) this.sonar.echoes = this.sonar.echoes.filter(e => !e.owner || !e.owner.dead);
+    if (this.sonar.models.some(m => m.owner && m.owner.dead)) this.sonar.models = this.sonar.models.filter(m => !m.owner || !m.owner.dead);
     this.updateAscension(dt);
     this.updatePaint(dt);
     this.updateCamera(dt);

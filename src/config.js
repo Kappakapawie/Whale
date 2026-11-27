@@ -18,8 +18,7 @@ const CONFIG = {
   // width / depth in world units (1 unit = 0.4 m; the whale swims ~75-130 units/s). Between neighbours the seabed
   // slopes inside the deeper segment, over max(ramp, depth difference x rampPerDepth), at most maxRampShare of
   // that segment's width. The start is always a small shelf with open sea right next to it on both sides.
-  // `lookahead`: segments are decided this far beyond the loaded area. Beaches are rare (fewer than the old
-  // one-per-28000 coasts even for a new whale).
+  // Beaches are rare.
   segments: {
     types: {
       beach: { weight: [0.07, 0.005], width: [1600, 2400], depth: [200, 250] }, // ~80-100 m, beach on the horizon
@@ -29,7 +28,10 @@ const CONFIG = {
       trench: { weight: [0, 0.08], width: [4200, 5200], depth: [11100, 11400] }, // ~4500 m: the deepest point (ascension)
     },
     start: { type: 'shelf', halfWidth: 900, neighbour: 'open' },
-    ramp: 700, rampPerDepth: 0.6, maxRampShare: 0.45, lookahead: 8000,
+    // lookahead: segments are decided this far beyond the loaded area (short, so they reflect your progress now).
+    // forgetMargin: segments further than loaded area + lookahead + this are forgotten (no memory of old places).
+    // progressCurve: weights use progress^curve (0.5 = sqrt: the late-game deep mix arrives early).
+    ramp: 700, rampPerDepth: 0.6, maxRampShare: 0.45, lookahead: 2500, forgetMargin: 4500, progressCurve: 0.5,
   },
   population: { pods: 2, ships: 1, checkInterval: 1, groupSpread: 130 }, // groupSpread: how loose schools are
   // Free swimmers keep this much water between themselves and terrain (nearFloor species are exempt).
@@ -416,16 +418,15 @@ const CONFIG = {
   // Taking damage: a faint red tint at the screen edges (alpha at full flash; `inner` = clear centre radius share).
   damageFx: { alpha: 0.32, inner: 0.42, decay: 1.6 },
 
-  // A kill bursts into blood clouds and flesh chunks (count and spread scale with the prey's size). The chunks
-  // drift, slow down and sink. In the dark they are only seen as sonar echoes (green/yellow like the creature).
-  // minRadius (x whale size): even a sardine makes a visible burst.
-  gore: { chunks: [7, 18], chunkLife: 7, clouds: 5, cloudLife: 5, burst: 90, drag: 1.6, sink: 9, minRadius: 22,
-          trailWidth: 1.2, echoLife: 0.7 },
+  // A kill leaves blobs of blood (blobs = how many; each a few overlapping wobbling lobes) that spread at `spread`,
+  // slow down (drag) and sink, swelling and fading over blobLife s. minRadius (x whale size): even a sardine
+  // leaves visible blood. In the dark the blood is only seen as sonar echoes (green/yellow like the creature).
+  gore: { blobs: [2, 4], blobLife: 6, spread: 28, drag: 1.4, sink: 7, minRadius: 18, echoLife: 0.7, chunkLife: 7 },
 
   // 3D creature models (models3d.js): ring = segments around each body cross-section; yawRate = how fast an animal
   // turns around (rad/s) - reversing passes through a head-on view; yawWander = how far it drifts toward a
   // three-quarter view so you see it from several angles. enabled false = the old flat polygons.
-  models3d: { enabled: true, ring: 10, yawRate: 2.6, yawWander: 0.45, lowPx: 45, lowRing: 6, minPx: 8 }, // LOD: under lowPx on screen use lowRing segments, under minPx flat
+  models3d: { enabled: true, waveAmp: 8, ring: 10, yawRate: 2.6, yawWander: 0.45, lowPx: 30, lowRing: 6, minPx: 3 }, // LOD: under lowPx on screen use lowRing segments, under minPx flat
 
   // Eating zone: a capsule along the lower jaw, from `front` to `back` (whale-local units, body length ~190,
   // snout tip at x 90), `reach` x size around it. Prey whose body touches it can be bitten.
