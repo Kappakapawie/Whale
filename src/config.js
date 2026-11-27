@@ -254,6 +254,16 @@ const CONFIG = {
       hp: 260, final: true, attack: { damage: 16, cooldown: 1.0, range: 900, chaseSpeed: 55, chaseTime: 10, rest: 15 } },
   ],
 
+  // Submarines (src/subs.js): rare - when none is around, one appears with spawnChance per population check. While
+  // you are WANTED there are perStar per star (up to maxSubs); they hunt you within senseRange x size (anywhere from
+  // wanted.trackAlwaysAt stars), hold a standoff, and fire homing torpedoes (turn slowly: dodge with a sharp turn;
+  // they run out after torpedoLife s). huntSpeed stays below the whale's swim speed. On sonar they always stay a
+  // level-1 echo (echoLevel familiarity: a vague dashed blob).
+  subs: { length: 700, depthMin: 750, depthMax: 3750, speed: 30, huntSpeed: 55, spawnChance: 0.008, perStar: 1, maxSubs: 3,
+          senseRange: 2200, standoff: 550, fireRange: 1000, cooldown: 7, minCooldown: 3.5,
+          // torpedoes: speed x sqrt(size); they run for long enough to cover fireRange x size x torpedoReach
+          torpedoSpeed: 140, torpedoTurn: 0.9, torpedoReach: 1.3, torpedoDamage: 18, echoLevel: 0.15 },
+
   // Hunters: predators that come after a developed whale (not part of the food chain). They appear once
   // Game.progress() passes minProgress and grow more common up to full progress (count x ramp). They live in the
   // deep, chase you (chaseSpeed stays below a full-grown whale's swim speed, so you can always get away) and give

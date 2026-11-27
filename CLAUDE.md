@@ -80,6 +80,12 @@ game reskinned, with its own food chain of cosmic fish ending in the Star Serpen
   ignore you; seen by their glow and on sonar. They always stay mysterious: their sonar image never gets past
   `model.mythicMaxF` (vague, at least `mythicMinError` wrong), never shows a path, can't be echo-locked and
   never drops its echo lines (`Game.isMythic`).
+- **Submarines** (`src/subs.js`, `CONFIG.subs`, `Game.manageSubs`): rare human submarines patrol the mid-depths
+  (one at a time, `spawnChance`). While you are WANTED there are `perStar` per star (max `maxSubs`): they hunt you,
+  hold a standoff and fire homing torpedoes that turn slowly (dodge with a sharp turn) and run out; speed and reach
+  scale with your size, `huntSpeed` stays below your swim speed. On sonar a submarine NEVER resolves: its hologram
+  is always a level-1 echo (`subs.echoLevel`, the vague dashed blob), no lock, no path (`Game.isVeiled`, shared
+  with the mythical creatures). Drawn as a 3D hull (`MODELS3D.sub`).
 - **Hunters** (`CONFIG.hunters`): predators that come after a developed whale - Abyssal Shark and Frilled Hunter
   (not food-chain species; `hunter: true`). They appear once `Game.progress()` passes `minProgress`, more of them
   toward full progress, live in the deep, chase you below your swim speed and give up after `chaseTime`. You can
@@ -251,6 +257,7 @@ then open http://localhost:8123 (the `deep-echo` entry in `.claude/launch.json` 
 | `src/fauna.js` | Ambient + mythical fauna (ring orbit for the ascension), coast swimmers, beach scenery, seabed decor, glow pass |
 | `src/quests.js` | Quest generation, tracking, rewards, quest panel |
 | `src/models3d.js` | 3D creature models (`MODELS3D`), per-creature 3D orientation/animation, mesh renderer, LOD |
+| `src/subs.js` | Submarines (patrol, hunt while wanted) and their homing torpedoes |
 | `src/kraken.js` | The Kraken: behaviour, scan cells, partial-reveal hologram |
 | `src/entities.js` | `SHAPES`, `Whale` (growth, upgrades), `Prey` (all species), `Pod` + `Orca`, `Ship` + `Harpoon` |
 | `src/audio.js` | Procedural WebAudio sounds (clicks, echoes, hurt, harpoon, breath), volume channels + saved volumes |

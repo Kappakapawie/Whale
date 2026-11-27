@@ -30,6 +30,7 @@ class Game {
     this.prey = []; this.groups = []; this.pods = []; this.orcas = [];
     this.ships = []; this.harpoons = []; this.particles = []; this.popups = [];
     this.gore = { blobs: [], chunks: [] };
+    this.subs = []; this.torpedoes = []; // submarines (subs.js)
     this.paint = []; // paint-sense lines (cosmic realm)
     this.fauna = []; this.swimmers = []; this.wanted = 0; this.wantedT = 0; this.intelT = 0; this.carcasses = [];
     this.quests = new Quests(this);
@@ -107,7 +108,7 @@ class Game {
     this.world = new World(undefined, () => this.progress(), { cosmic: true });
     w.y = 3000; w.vx = 0; w.vy = 0; w.updatePoly();
     this.prey = []; this.groups = []; this.pods = []; this.orcas = []; this.ships = []; this.harpoons = [];
-    this.fauna = []; this.swimmers = []; this.carcasses = []; this.kraken = null; this.gore = { blobs: [], chunks: [] };
+    this.fauna = []; this.swimmers = []; this.carcasses = []; this.kraken = null; this.gore = { blobs: [], chunks: [] }; this.subs = []; this.torpedoes = [];
     this.wanted = 0; this.humanHeat = 0; this.whaleIntel = null; this.fight = null;
     this.sonar.echoes = []; this.sonar.models = []; this.sonar.pings = []; this.paint = [];
     const first = CONFIG.species.find(sp => sp.cosmic);
@@ -176,6 +177,7 @@ class Game {
       }
     }
     this.manageKraken();
+    this.manageSubs(minD);
     this.manageFauna(minD);
     // dead fish drifting down (random species up to a few tiers above your diet)
     const CC = CONFIG.carcass;
@@ -446,14 +448,17 @@ class Game {
     return best;
   }
 
-  speciesKey(o) { return o instanceof Prey ? o.sp.id : o instanceof Fauna ? 'f:' + o.def.id : o instanceof Swimmer ? 'human' : 'orca'; }
+  speciesKey(o) { return o instanceof Submarine ? 'sub' : o instanceof Prey ? o.sp.id : o instanceof Fauna ? 'f:' + o.def.id : o instanceof Swimmer ? 'human' : 'orca'; }
   isMythic(o) { return o instanceof Fauna && !!o.def.mythic; }
-  isCreature(o) { return o instanceof Prey || o instanceof Orca || o instanceof Fauna || o instanceof Swimmer; }
-  creatureName(o) { return o instanceof Prey ? o.sp.name : o instanceof Fauna ? o.def.name : o instanceof Swimmer ? 'Human' : 'Orca'; }
+  // never fully learnable on sonar: mythical creatures and submarines
+  isVeiled(o) { return this.isMythic(o) || o instanceof Submarine; }
+  isCreature(o) { return o instanceof Submarine || o instanceof Prey || o instanceof Orca || o instanceof Fauna || o instanceof Swimmer; }
+  creatureName(o) { return o instanceof Submarine ? 'Submarine' : o instanceof Prey ? o.sp.name : o instanceof Fauna ? o.def.name : o instanceof Swimmer ? 'Human' : 'Orca'; }
 
   allSolids() {
     return [...this.world.solids, ...this.world.cables.map(c => c.solid), ...(this.kraken ? this.kraken.solids : []), ...this.fauna.map(f => f.solid), ...this.swimmers.map(s => s.solid), ...this.carcasses.map(c => c.solid),
-            ...this.world.decor.filter(d => d.solid).map(d => d.solid), ...this.prey.map(p => p.solid), ...this.orcas.map(o => o.solid), ...this.ships.map(s => s.solid)];
+            ...this.world.decor.filter(d => d.solid).map(d => d.solid), ...this.prey.map(p => p.solid), ...this.orcas.map(o => o.solid), ...this.ships.map(s => s.solid),
+            ...this.subs.map(s => s.solid), ...this.torpedoes.map(t => t.solid)];
   }
 
   mouseWorld() {
@@ -469,7 +474,7 @@ class Game {
     const res = this.sonar.emit(type, h.x, h.y, aim, this.allSolids(), this.time, {
       classify: solid => this.echoClass(solid),
       skipEcho: solid => { const o = solid.owner; if (o instanceof Kraken) return this.krakenDone;
-                           return !!o && this.isCreature(o) && !this.isMythic(o) &&
+                           return !!o && this.isCreature(o) && !this.isVeiled(o) &&
                                    (w.scans[this.speciesKey(o)] || 0) >= CONFIG.sonar.model.scansForFull; },
       onRayHit: (solid, j) => { if (solid.owner instanceof Kraken) w.krakenKnown.add(Kraken.cellKey(solid, j)); },
       rangeMult: s.sonarRangeMult * w.size, coneMult: s.sonarConeMult, cdMult: s.sonarCooldownMult,
@@ -491,7 +496,7 @@ class Game {
       for (const [solid, d] of res.hitSolids) {
         const o = solid.owner;
         if (!this.isCreature(o)) continue;
-        if (this.isMythic(o) || (w.scans[this.speciesKey(o)] || 0) < CONFIG.sonar.model.scansForFull) continue; // mythical: never locked
+        if (this.isVeiled(o) || (w.scans[this.speciesKey(o)] || 0) < CONFIG.sonar.model.scansForFull) continue; // mythical/subs: never locked
         const prev = this.acquired.get(o), reveal = this.time + d / res.speed;
         if (prev !== undefined && this.time - prev < CONFIG.sonar.lockWindow) {
           if (!this.locks.has(o)) this.popup(o.x, o.y - 40 * o.scale, 'ECHO LOCK', '#bfffd0');
@@ -529,16 +534,17 @@ class Game {
     if (!owner || !this.isCreature(owner)) return;
     const M = CONFIG.sonar.model, w = this.whale;
     if (count) owner.lockPlan(CONFIG.creatures.reactionTime); // can't react to the click instantly
-    const id = this.speciesKey(owner), mythic = this.isMythic(owner);
+    const id = this.speciesKey(owner), mythic = this.isMythic(owner), sub = owner instanceof Submarine;
     const n = (w.scans[id] || 0) + (count ? 1 : 0);
     w.scans[id] = n;
-    if (count && n === M.scansForFull && !mythic) {
+    if (count && n === M.scansForFull && !mythic && !sub) {
       const name = this.creatureName(owner);
       this.say(`Sonar image complete: ${name}`, 3, '#9fe8ff');
     }
-    if (n < M.minScans) return;
+    if (n < M.minScans && !sub) return; // (a submarine always shows its level-1 blob)
     // mythical creatures can never be fully learned: their image stays vague and a bit wrong, however often you ping them
-    const f = Math.min(mythic ? M.mythicMaxF : 1, n / M.scansForFull), err = Math.max(1 - f, mythic ? M.mythicMinError : 0);
+    const f = sub ? CONFIG.subs.echoLevel : Math.min(mythic ? M.mythicMaxF : 1, n / M.scansForFull);
+    const err = Math.max(1 - f, mythic ? M.mythicMinError : 0); // submarines: always a level-1 echo
     const len = owner.length || 110 * owner.scale;
     this.sonar.models.push({
       owner, shape: owner.shapeName, kind: this.echoClass(owner.solid), f,
@@ -790,6 +796,22 @@ class Game {
     this.carcasses = this.carcasses.filter(c => !c.dead);
   }
 
+  // Submarines: rare; while you are wanted, perStar per star (up to maxSubs). Spawned out of sight in their depth band.
+  manageSubs(minD) {
+    const C = CONFIG.subs, w = this.whale, D = this.despawnRadius();
+    this.subs = this.subs.filter(s => dist(s.x, s.y, w.x, w.y) < D * 1.2);
+    if (this.cosmic) { this.subs = []; return; }
+    const want = this.wanted > 0 ? Math.min(C.maxSubs, Math.ceil(this.wanted * C.perStar)) : (this.subs.length || Math.random() < C.spawnChance ? 1 : 0);
+    if (this.subs.length > want) { // calm again: the extra ones leave once out of sight
+      const far = this.subs.slice().sort((a, b) => dist(b.x, b.y, w.x, w.y) - dist(a.x, a.y, w.x, w.y))[0];
+      if (dist(far.x, far.y, w.x, w.y) > this.cw / (2 * this.cam.z) + 400) this.subs = this.subs.filter(s => s !== far);
+    }
+    for (let tries = 0; this.subs.length < want && tries < 3; tries++) {
+      const q = this.randomWaterPoint(C.depthMin, C.depthMax, null, null, w, minD, 400);
+      if (q) this.subs.push(new Submarine(q.x, q.y));
+    }
+  }
+
   // ------------------------------------------------------------ local echoes
   // Damaging something lights it up like a sonar hit at your current familiarity: its faces toward you echo
   // (unless the species is fully learned) and its hologram snapshot appears. No scan is counted, no noise made.
@@ -798,7 +820,7 @@ class Game {
     // seen from the whale's body centre (the snout is often already inside what it is biting)
     const w = this.whale, h = { x: w.x, y: w.y }, life = CONFIG.sonar.echoLife * w.stats.echoLifeMult;
     const kind = o.solid ? this.echoClass(o.solid) : 'inedible';
-    const learned = this.isCreature(o) && !this.isMythic(o) && (w.scans[this.speciesKey(o)] || 0) >= CONFIG.sonar.model.scansForFull;
+    const learned = this.isCreature(o) && !this.isVeiled(o) && (w.scans[this.speciesKey(o)] || 0) >= CONFIG.sonar.model.scansForFull;
     if (!learned) {
       const P = o.poly, n = P.length; let cx = 0, cy = 0;
       for (const p of P) { cx += p[0] / n; cy += p[1] / n; }
@@ -992,6 +1014,9 @@ class Game {
     this.updateWanted(dt);
     for (const s of this.ships) s.update(dt, this);
     this.ships = this.ships.filter(s => !s.dead);
+    for (const sb of this.subs) sb.update(dt, this);
+    for (const tp of this.torpedoes) tp.update(dt, this);
+    this.torpedoes = this.torpedoes.filter(tp => !tp.dead);
     for (const h of this.harpoons) h.update(dt, this);
     this.harpoons = this.harpoons.filter(h => !h.dead);
     this.sonar.update(dt, this.time);

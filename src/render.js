@@ -95,6 +95,15 @@ function drawGame(game) {
     ctx.beginPath(); cb.line.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke();
   }
   if (game.kraken) drawKrakenBody(ctx, game.kraken);
+  for (const sb of game.subs) { // submarines (3D hull) and their torpedoes
+    if (!inView(sb.solid, 60)) continue;
+    if (!(CONFIG.models3d.enabled && drawCreature3D(ctx, sb, t, { color: '#3d444c', belly: '#2b3036' }))) { ctx.fillStyle = '#3d444c'; tracePoly(ctx, sb.poly); ctx.fill(); }
+  }
+  for (const tp of game.torpedoes) {
+    ctx.fillStyle = '#5a6068'; tracePoly(ctx, tp.poly); ctx.fill();
+    ctx.fillStyle = 'rgba(220,240,255,0.35)'; // bubble trail
+    for (let k = 1; k <= 4; k++) { ctx.beginPath(); ctx.arc(tp.x - Math.cos(tp.angle) * 14 * k, tp.y - Math.sin(tp.angle) * 14 * k + Math.sin(t * 9 + k) * 2, 2 + k * 0.4, 0, TAU); ctx.fill(); }
+  }
   for (const s of game.ships) drawShip(ctx, s);
   ctx.fillStyle = '#c9c2b0';
   for (const h of game.harpoons) {
